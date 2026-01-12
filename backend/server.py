@@ -964,6 +964,29 @@ async def update_inventory_request(request_id: str, data: Dict[str, Any], sessio
     
     return {"message": "Request updated"}
 
+@api_router.delete("/inventory-requests/{request_id}")
+async def delete_inventory_request(request_id: str, session_token: Optional[str] = Cookie(None)):
+    """Delete inventory request (Admin/HR or request owner)"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Get request to check ownership
+    request = await db.inventory_requests.find_one({"request_id": request_id}, {"_id": 0})
+    if not request:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    # Allow Admin/HR or the person who created the request to delete
+    if user.role not in ['Admin', 'HR'] and request['user_id'] != user.user_id:
+        raise HTTPException(status_code=403, detail="You can only delete your own requests")
+    
+    result = await db.inventory_requests.delete_one({"request_id": request_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Request not found")
+    
+    return {"message": "Request deleted successfully"}
+
 # ==================== EQUIPMENT SCHEDULING ====================
 
 @api_router.post("/equipment-bookings")
