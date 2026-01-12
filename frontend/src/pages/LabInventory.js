@@ -18,6 +18,8 @@ export default function LabInventory() {
   const [requests, setRequests] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [requestDialogOpen, setRequestDialogOpen] = useState(false);
+  const [deleteRequestDialogOpen, setDeleteRequestDialogOpen] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState(null);
   const [formData, setFormData] = useState({ name: '', category: 'Equipment', quantity: '', unit: '', location: '' });
   const [requestData, setRequestData] = useState({ item_id: '', quantity: '', reason: '' });
 
