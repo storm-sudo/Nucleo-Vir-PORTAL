@@ -1175,6 +1175,159 @@ async def get_dashboard_stats(session_token: Optional[str] = Cookie(None)):
     
     return stats
 
+# ==================== STATIONARY INVENTORY ====================
+
+@api_router.post("/stationary")
+async def create_stationary_item(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Create stationary item (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can add stationary items")
+    
+    item_doc = {
+        "item_id": f"stat_{uuid.uuid4().hex[:12]}",
+        "name": data['name'],
+        "category": data['category'],
+        "quantity": data['quantity'],
+        "unit": data['unit'],
+        "min_stock_level": data.get('min_stock_level', 10),
+        "location": data.get('location', ''),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.stationary.insert_one(item_doc)
+    return {"message": "Item added", "item_id": item_doc['item_id']}
+
+@api_router.get("/stationary")
+async def get_stationary(session_token: Optional[str] = Cookie(None)):
+    """Get all stationary items"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    items = await db.stationary.find({}, {"_id": 0}).to_list(1000)
+    return items
+
+@api_router.put("/stationary/{item_id}")
+async def update_stationary_item(item_id: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Update stationary item (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can update stationary items")
+    
+    result = await db.stationary.update_one(
+        {"item_id": item_id},
+        {"$set": data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    return {"message": "Item updated successfully"}
+
+@api_router.delete("/stationary/{item_id}")
+async def delete_stationary_item(item_id: str, session_token: Optional[str] = Cookie(None)):
+    """Delete stationary item (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can delete stationary items")
+    
+    result = await db.stationary.delete_one({"item_id": item_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    return {"message": "Item deleted successfully"}
+
+# ==================== WORK ASSIGNMENTS / TASKS ====================
+
+@api_router.post("/tasks")
+async def create_task(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Create task (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can create tasks")
+    
+    task_doc = {
+        "task_id": f"task_{uuid.uuid4().hex[:12]}",
+        "title": data['title'],
+        "description": data['description'],
+        "assigned_to": data['assigned_to'],
+        "assigned_by": user.user_id,
+        "due_date": data['due_date'],
+        "priority": data.get('priority', 'Medium'),
+        "status": data.get('status', 'Today'),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.tasks.insert_one(task_doc)
+    return {"message": "Task created", "task_id": task_doc['task_id']}
+
+@api_router.get("/tasks")
+async def get_tasks(session_token: Optional[str] = Cookie(None)):
+    """Get tasks (Admins see all, Employees see only their tasks)"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    if user.role == 'Admin':
+        tasks = await db.tasks.find({}, {"_id": 0}).to_list(1000)
+    else:
+        tasks = await db.tasks.find({"assigned_to": user.user_id}, {"_id": 0}).to_list(1000)
+    
+    return tasks
+
+@api_router.get("/tasks/{employee_id}")
+async def get_tasks_by_employee(employee_id: str, session_token: Optional[str] = Cookie(None)):
+    """Get tasks for specific employee (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can view employee tasks")
+    
+    tasks = await db.tasks.find({"assigned_to": employee_id}, {"_id": 0}).to_list(1000)
+    return tasks
+
+@api_router.put("/tasks/{task_id}")
+async def update_task(task_id: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Update task (Admin or assigned employee can update status)"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Check if user is admin or the assigned employee
+    task = await db.tasks.find_one({"task_id": task_id}, {"_id": 0})
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    if user.role != 'Admin' and task['assigned_to'] != user.user_id:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    # If employee is updating, only allow status changes
+    if user.role != 'Admin':
+        allowed_keys = {'status'}
+        data = {k: v for k, v in data.items() if k in allowed_keys}
+    
+    result = await db.tasks.update_one(
+        {"task_id": task_id},
+        {"$set": data}
+    )
+    
+    return {"message": "Task updated successfully"}
+
+@api_router.delete("/tasks/{task_id}")
+async def delete_task(task_id: str, session_token: Optional[str] = Cookie(None)):
+    """Delete task (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can delete tasks")
+    
+    result = await db.tasks.delete_one({"task_id": task_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Task not found")
+    
+    return {"message": "Task deleted successfully"}
+
 # Include router
 app.include_router(api_router)
 
