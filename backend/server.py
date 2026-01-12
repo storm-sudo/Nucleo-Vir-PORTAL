@@ -768,6 +768,24 @@ async def get_notebook_entries(session_token: Optional[str] = Cookie(None)):
     entries = await db.lab_notebook.find({}, {"_id": 0}).sort([("created_at", -1)]).to_list(1000)
     return entries
 
+@api_router.delete("/lab-notebook/{entry_id}")
+async def delete_notebook_entry(entry_id: str, session_token: Optional[str] = Cookie(None)):
+    """Delete lab notebook entry (Admin or owner)"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Check if user is admin or owner
+    entry = await db.lab_notebook.find_one({"entry_id": entry_id}, {"_id": 0})
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    
+    if user.role != 'Admin' and entry['user_id'] != user.user_id:
+        raise HTTPException(status_code=403, detail="Only admins or entry owners can delete entries")
+    
+    await db.lab_notebook.delete_one({"entry_id": entry_id})
+    return {"message": "Entry deleted successfully"}
+
 # ==================== LAB INVENTORY ====================
 
 @api_router.post("/inventory")
