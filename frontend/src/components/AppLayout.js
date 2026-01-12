@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { 
   LayoutDashboard, Users, Calendar, FileText, Package, 
   Microscope, MessageSquare, ClipboardList, LogOut, Menu, X,
-  Clock, DollarSign, FolderKanban
+  Clock, DollarSign, FolderKanban, BookOpen
 } from 'lucide-react';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
