@@ -49,6 +49,7 @@ function AppRouter() {
         <Route path="chat" element={<Chat />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="helpdesk" element={<Helpdesk />} />
+        <Route path="about" element={<About />} />
       </Route>
     </Routes>
   );
