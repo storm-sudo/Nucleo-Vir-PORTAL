@@ -47,7 +47,9 @@ function AppRouter() {
         <Route path="projects" element={<Projects />} />
         <Route path="lab-notebook" element={<LabNotebook />} />
         <Route path="lab-inventory" element={<LabInventory />} />
+        <Route path="stationary-inventory" element={<StationaryInventory />} />
         <Route path="equipment-schedule" element={<EquipmentSchedule />} />
+        <Route path="work-assignments" element={<WorkAssignments />} />
         <Route path="chat" element={<Chat />} />
         <Route path="calendar" element={<Calendar />} />
         <Route path="helpdesk" element={<Helpdesk />} />
