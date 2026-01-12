@@ -173,6 +173,7 @@ export default function Employees() {
                       <SelectItem value="Admin">Admin</SelectItem>
                       <SelectItem value="HR">HR</SelectItem>
                       <SelectItem value="Employee">Employee</SelectItem>
+                      <SelectItem value="Intern">Intern</SelectItem>
                       <SelectItem value="Accountant">Accountant</SelectItem>
                       <SelectItem value="CA">CA</SelectItem>
                     </SelectContent>
