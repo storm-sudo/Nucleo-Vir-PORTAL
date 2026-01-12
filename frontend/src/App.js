@@ -15,6 +15,7 @@ import EquipmentSchedule from '@/pages/EquipmentSchedule';
 import Chat from '@/pages/Chat';
 import Calendar from '@/pages/Calendar';
 import Helpdesk from '@/pages/Helpdesk';
+import About from '@/pages/About';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AppLayout from '@/components/AppLayout';
 import { Toaster } from '@/components/ui/sonner';
