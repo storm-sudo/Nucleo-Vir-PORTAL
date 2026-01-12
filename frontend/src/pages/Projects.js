@@ -74,7 +74,34 @@ export default function Projects() {
     }
   };
 
+  const handleDeleteClick = (project) => {
+    setSelectedProject(project);
+    setDeleteDialogOpen(true);
+  };
+
+  const handleDelete = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/projects/${selectedProject.project_id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        toast.success('Project deleted successfully');
+        setDeleteDialogOpen(false);
+        setSelectedProject(null);
+        fetchProjects();
+      } else {
+        const data = await response.json();
+        toast.error(data.detail || 'Failed to delete project');
+      }
+    } catch (error) {
+      toast.error('An error occurred');
+    }
+  };
+
   const columns = ['Todo', 'In Progress', 'Done'];
+  const canDelete = user && user.role === 'Admin';
 
   return (
     <div data-testid="projects-page" className="space-y-6">
