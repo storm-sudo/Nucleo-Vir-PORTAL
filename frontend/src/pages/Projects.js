@@ -13,8 +13,11 @@ import ConfirmDialog from '@/components/ConfirmDialog';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 export default function Projects() {
+  const { user } = useOutletContext();
   const [projects, setProjects] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [selectedProject, setSelectedProject] = useState(null);
   const [formData, setFormData] = useState({ title: '', description: '', status: 'Todo' });
 
   useEffect(() => {
