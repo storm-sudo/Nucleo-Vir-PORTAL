@@ -213,6 +213,29 @@ class ContactForm(BaseModel):
     subject: str
     message: str
 
+class StationaryItem(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    item_id: str
+    name: str
+    category: str  # Pens, Notebooks, Lab Stationery, Office Supplies
+    quantity: int
+    unit: str
+    min_stock_level: int
+    location: str
+    created_at: datetime
+
+class Task(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    task_id: str
+    title: str
+    description: str
+    assigned_to: str  # employee_id or user_id
+    assigned_by: str  # user_id
+    due_date: str
+    priority: str  # Low, Medium, High
+    status: str  # Today, In Progress, Completed
+    created_at: datetime
+
 # ==================== HELPER FUNCTIONS ====================
 
 async def get_user_from_token(token: Optional[str]) -> Optional[User]:
