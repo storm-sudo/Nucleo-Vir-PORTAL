@@ -46,6 +46,10 @@ export default function AppLayout() {
     { icon: ClipboardList, label: 'Helpdesk', path: '/app/helpdesk' },
   ];
 
+  const secondaryMenuItems = [
+    { icon: BookOpen, label: 'Portal Guide', path: '/app/about' },
+  ];
+
   const filteredMenuItems = menuItems.filter(item => {
     if (!item.roles) return true;
     return user && item.roles.includes(user.role);
