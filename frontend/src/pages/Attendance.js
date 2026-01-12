@@ -80,9 +80,17 @@ export default function Attendance() {
 
   return (
     <div data-testid="attendance-page" className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-heading font-bold text-slate-900">Attendance</h1>
-        <p className="text-slate-600">Track your attendance and view history</p>
+      <div className="flex justify-between items-center">
+        <div>
+          <h1 className="text-3xl font-heading font-bold text-slate-900">Attendance</h1>
+          <p className="text-slate-600">Track your attendance and view history</p>
+        </div>
+        {isAdmin && (
+          <Button onClick={handleExportAttendance} data-testid="export-attendance-btn" className="bg-emerald-600 hover:bg-emerald-700">
+            <Download className="h-4 w-4 mr-2" />
+            Download Attendance CSV
+          </Button>
+        )}
       </div>
 
       <Card className="border-slate-200">
