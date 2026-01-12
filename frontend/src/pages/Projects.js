@@ -6,7 +6,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, GripVertical } from 'lucide-react';
+import { Plus, GripVertical, Trash2 } from 'lucide-react';
+import { useOutletContext } from 'react-router-dom';
+import ConfirmDialog from '@/components/ConfirmDialog';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
