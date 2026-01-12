@@ -818,6 +818,20 @@ async def get_inventory(session_token: Optional[str] = Cookie(None)):
     items = await db.inventory.find({}, {"_id": 0}).to_list(1000)
     return items
 
+@api_router.delete("/inventory/{item_id}")
+async def delete_inventory_item(item_id: str, session_token: Optional[str] = Cookie(None)):
+    """Delete inventory item (Admin/HR only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role not in ['Admin', 'HR']:
+        raise HTTPException(status_code=403, detail="Only admins/HR can delete inventory items")
+    
+    result = await db.inventory.delete_one({"item_id": item_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Item not found")
+    
+    return {"message": "Item deleted successfully"}
+
 @api_router.post("/inventory-requests")
 async def create_inventory_request(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Request inventory item"""
