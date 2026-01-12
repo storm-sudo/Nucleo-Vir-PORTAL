@@ -1,0 +1,138 @@
+{
+  "identity": {
+    "persona": "E1",
+    "philosophy": "Fusion over Imitation. Emotion First. Content is King.",
+    "anti_patterns": [
+      "Generic center-aligned layouts",
+      "Overused gradients without purpose",
+      "Default 'Inter' everywhere",
+      "Teal/Purple generic SaaS look"
+    ]
+  },
+  "typography": {
+    "headings": {
+      "family": "Manrope, sans-serif",
+      "weights": ["600", "800"],
+      "usage": "Use for all H1-H4. Tight tracking (-0.02em) for large text."
+    },
+    "body": {
+      "family": "Inter, sans-serif",
+      "weights": ["400", "500"],
+      "usage": "Use for paragraphs, UI labels, and data tables."
+    },
+    "mono": {
+      "family": "JetBrains Mono, monospace",
+      "usage": "Use for gene sequences, accession numbers, and code snippets."
+    }
+  },
+  "colors": {
+    "palette_name": "Bio-Digital Precision",
+    "mode_strategy": "Hybrid (Light for Admin/HR, Dark option for Lab/Analytics)",
+    "primary": {
+      "name": "Deep Slate",
+      "hex": "#0F172A",
+      "tailwind": "bg-slate-900"
+    },
+    "brand_accent": {
+      "name": "Scientific Sky",
+      "hex": "#0EA5E9",
+      "tailwind": "text-sky-500"
+    },
+    "secondary_accent": {
+      "name": "Bio Emerald",
+      "hex": "#10B981",
+      "tailwind": "text-emerald-500"
+    },
+    "backgrounds": {
+      "landing_hero": "bg-slate-950",
+      "app_bg": "bg-slate-50",
+      "card_bg": "bg-white"
+    },
+    "semantic": {
+      "success": "text-emerald-600",
+      "warning": "text-amber-500",
+      "error": "text-rose-600",
+      "info": "text-sky-600"
+    }
+  },
+  "visual_enhancers": {
+    "glassmorphism": {
+      "usage": "Overlays, sticky headers, and modal backdrops.",
+      "classes": "bg-white/80 backdrop-blur-md border border-white/20 shadow-sm"
+    },
+    "borders": {
+      "style": "Subtle, crisp.",
+      "classes": "border border-slate-200 dark:border-slate-800"
+    },
+    "shadows": {
+      "style": "Soft, diffuse ambient shadows.",
+      "classes": "shadow-[0_2px_8px_rgba(0,0,0,0.04)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.08)] transition-shadow duration-300"
+    },
+    "textures": {
+      "usage": "Subtle noise overlay on dark backgrounds to prevent banding and add tactility."
+    }
+  },
+  "layout": {
+    "spacing_system": "Generous. Use p-8, p-12, p-16 for sections. p-6 for card internals.",
+    "grids": {
+      "marketing": "Tetris Grid (Asymmetric). Mix col-span-4, col-span-8, col-span-full.",
+      "dashboard": "Control Room Grid. Dense, gap-4. Widgets stretch to fill height."
+    },
+    "container": {
+      "max_width": "max-w-7xl mx-auto px-4 sm:px-6 lg:px-8"
+    }
+  },
+  "components": {
+    "buttons": {
+      "style": "Sharp or slightly rounded (rounded-md). No full pills unless for tags.",
+      "primary": "bg-slate-900 text-white hover:bg-slate-800 shadow-sm",
+      "secondary": "bg-white text-slate-900 border border-slate-200 hover:bg-slate-50"
+    },
+    "cards": {
+      "style": "Flat, bordered, minimal shadow.",
+      "classes": "bg-white border border-slate-200 rounded-lg overflow-hidden"
+    },
+    "inputs": {
+      "style": "Clean, high contrast focus state.",
+      "classes": "h-10 rounded-md border-slate-200 focus:ring-2 focus:ring-sky-500 focus:border-transparent"
+    }
+  },
+  "images": {
+    "hero_background": {
+      "url": "https://images.unsplash.com/photo-1582719299074-be127353065f?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwyfHxiaW90ZWNoJTIwbGFib3JhdG9yeSUyMHNjaWVudGlzdCUyMHJlc2VhcmNoJTIwbW9kZXJufGVufDB8fHx8MTc2ODIwNTU4NHww&ixlib=rb-4.1.0&q=85",
+      "alt": "Modern biotech laboratory with sequencing equipment",
+      "usage": "Hero section background with dark overlay"
+    },
+    "about_section": {
+      "url": "https://images.unsplash.com/photo-1582719366768-de4481b828ce?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDQ2NDN8MHwxfHNlYXJjaHwxfHxiaW90ZWNoJTIwbGFib3JhdG9yeSUyMHNjaWVudGlzdCUyMHJlc2VhcmNoJTIwbW9kZXJufGVufDB8fHx8MTc2ODIwNTU4NHww&ixlib=rb-4.1.0&q=85",
+      "alt": "Scientist analyzing data",
+      "usage": "About Us section, split layout"
+    },
+    "abstract_bg": {
+      "url": "https://images.unsplash.com/photo-1538806932492-b6ac36ccfa28?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHwyfHxkbmElMjBzdHJ1Y3R1cmUlMjBhYnN0cmFjdCUyMG1lZGljYWwlMjBibHVlJTIwYmFja2dyb3VuZHxlbnwwfHx8fDE3NjgyMDU1ODd8MA&ixlib=rb-4.1.0&q=85",
+      "alt": "Abstract DNA structure",
+      "usage": "Subtle background for 'Our Science' or 'Technology' section"
+    },
+    "facility": {
+      "url": "https://images.unsplash.com/photo-1748002645678-7f9c04263315?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1NzZ8MHwxfHNlYXJjaHwyfHxwaGFybWFjZXV0aWNhbCUyMG1hbnVmYWN0dXJpbmclMjBmYWNpbGl0eSUyMGhpZ2glMjB0ZWNofGVufDB8fHx8MTc2ODIwNTU4OHww&ixlib=rb-4.1.0&q=85",
+      "alt": "Pharmaceutical manufacturing facility",
+      "usage": "Services or Capabilities section"
+    }
+  },
+  "motion": {
+    "transitions": "transition-all duration-200 ease-in-out",
+    "hover_lift": "hover:-translate-y-1 hover:shadow-md",
+    "page_load": "animate-in fade-in slide-in-from-bottom-4 duration-700"
+  },
+  "universal_guidelines": [
+    "Do not use generic gradients. Use solid colors or subtle noise.",
+    "Ensure all interactive elements have data-testid attributes.",
+    "Use 'Manrope' for headings and 'Inter' for body text.",
+    "Avoid 'Inter' for headings.",
+    "Use generous padding (p-8+) to create breathing room.",
+    "Dark mode is for data-heavy views; Light mode for text-heavy views.",
+    "Never use pure black (#000000). Use Slate-900 or similar.",
+    "Buttons should have clear hierarchy (Primary vs Secondary vs Ghost)."
+  ],
+  "instructions_to_main_agent": "You are building a high-trust, scientific platform. Prioritize clarity, data density (in the app), and storytelling (on the landing page). Use the provided images to ground the design in reality. Follow the 'Bio-Digital Precision' theme."
+}
