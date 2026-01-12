@@ -50,6 +50,34 @@ export default function Attendance() {
     }
   };
 
+  const handleExportAttendance = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/attendance/export`, {
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `attendance_export_${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        window.URL.revokeObjectURL(url);
+        toast.success('Attendance data exported successfully');
+      } else {
+        const data = await response.json();
+        toast.error(data.detail || 'Failed to export attendance');
+      }
+    } catch (error) {
+      toast.error('An error occurred');
+    }
+  };
+
+  const isAdmin = user && user.role === 'Admin';
+
   return (
     <div data-testid="attendance-page" className="space-y-6">
       <div>
