@@ -8,6 +8,7 @@ import { useOutletContext } from 'react-router-dom';
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
 export default function Attendance() {
+  const { user } = useOutletContext();
   const [attendance, setAttendance] = useState([]);
   const [todayMarked, setTodayMarked] = useState(false);
 
