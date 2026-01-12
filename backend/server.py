@@ -454,6 +454,37 @@ async def get_employee(employee_id: str, session_token: Optional[str] = Cookie(N
     
     return employee
 
+@api_router.put("/employees/{employee_id}")
+async def update_employee(employee_id: str, employee_data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Update employee (Admin/HR only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role not in ['Admin', 'HR']:
+        raise HTTPException(status_code=403, detail="Access denied")
+    
+    result = await db.employees.update_one(
+        {"employee_id": employee_id},
+        {"$set": employee_data}
+    )
+    
+    if result.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    return {"message": "Employee updated successfully"}
+
+@api_router.delete("/employees/{employee_id}")
+async def delete_employee(employee_id: str, session_token: Optional[str] = Cookie(None)):
+    """Delete employee (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can delete employees")
+    
+    result = await db.employees.delete_one({"employee_id": employee_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Employee not found")
+    
+    return {"message": "Employee deleted successfully"}
+
 # ==================== ATTENDANCE & LEAVE ====================
 
 @api_router.post("/attendance")
