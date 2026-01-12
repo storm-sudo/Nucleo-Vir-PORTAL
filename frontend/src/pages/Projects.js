@@ -149,6 +149,15 @@ export default function Projects() {
         </Dialog>
       </div>
 
+      {/* Delete Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteDialogOpen}
+        onOpenChange={setDeleteDialogOpen}
+        onConfirm={handleDelete}
+        title="Delete Project"
+        description={`Are you sure you want to delete "${selectedProject?.title}"? This action cannot be undone.`}
+      />
+
       <div className="grid md:grid-cols-3 gap-6">
         {columns.map((column) => (
           <div key={column} className="space-y-4">
