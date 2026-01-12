@@ -114,6 +114,32 @@ export default function LabInventory() {
     }
   };
 
+  const handleDeleteRequestClick = (request) => {
+    setSelectedRequest(request);
+    setDeleteRequestDialogOpen(true);
+  };
+
+  const handleDeleteRequest = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/inventory-requests/${selectedRequest.request_id}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        toast.success('Request deleted successfully');
+        setDeleteRequestDialogOpen(false);
+        setSelectedRequest(null);
+        fetchRequests();
+      } else {
+        const data = await response.json();
+        toast.error(data.detail || 'Failed to delete request');
+      }
+    } catch (error) {
+      toast.error('An error occurred');
+    }
+  };
+
   const canManage = user && ['Admin', 'HR'].includes(user.role);
 
   return (
