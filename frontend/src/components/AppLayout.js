@@ -32,6 +32,7 @@ export default function AppLayout() {
 
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/app', exact: true },
+    { icon: Clipboard, label: 'Work Assignments', path: '/app/work-assignments' },
     { icon: Users, label: 'Employees', path: '/app/employees', roles: ['Admin', 'HR'] },
     { icon: Clock, label: 'Attendance', path: '/app/attendance' },
     { icon: FileText, label: 'Leave Requests', path: '/app/leave-requests' },
@@ -40,6 +41,7 @@ export default function AppLayout() {
     { icon: FolderKanban, label: 'Projects', path: '/app/projects' },
     { icon: Microscope, label: 'Lab Notebook', path: '/app/lab-notebook' },
     { icon: Package, label: 'Lab Inventory', path: '/app/lab-inventory' },
+    { icon: Pen, label: 'Stationary Inventory', path: '/app/stationary-inventory' },
     { icon: Calendar, label: 'Equipment Schedule', path: '/app/equipment-schedule' },
     { icon: MessageSquare, label: 'Chat', path: '/app/chat' },
     { icon: Calendar, label: 'Calendar', path: '/app/calendar' },
