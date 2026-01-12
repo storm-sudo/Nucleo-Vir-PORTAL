@@ -722,6 +722,20 @@ async def update_project(project_id: str, data: Dict[str, Any], session_token: O
     await db.projects.update_one({"project_id": project_id}, {"$set": data})
     return {"message": "Project updated"}
 
+@api_router.delete("/projects/{project_id}")
+async def delete_project(project_id: str, session_token: Optional[str] = Cookie(None)):
+    """Delete project (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can delete projects")
+    
+    result = await db.projects.delete_one({"project_id": project_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Project not found")
+    
+    return {"message": "Project deleted successfully"}
+
 # ==================== LAB NOTEBOOK ====================
 
 @api_router.post("/lab-notebook")
