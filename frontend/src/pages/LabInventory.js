@@ -306,54 +306,79 @@ export default function LabInventory() {
       <div>
         <h2 className="text-xl font-heading font-bold text-slate-900 mb-4">Inventory Requests</h2>
         <div className="space-y-3">
-          {requests.map((request) => (
-            <Card key={request.request_id} className="border-slate-200">
-              <CardContent className="pt-6">
-                <div className="flex justify-between items-start">
-                  <div className="space-y-1 flex-1">
-                    <div className="text-sm text-slate-600">
-                      <strong>Item ID:</strong> {request.item_id}
+          {requests.map((request) => {
+            const canDelete = canManage || request.user_id === user?.user_id;
+            return (
+              <Card key={request.request_id} className="border-slate-200">
+                <CardContent className="pt-6">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1 flex-1">
+                      <div className="text-sm text-slate-600">
+                        <strong>Item ID:</strong> {request.item_id}
+                      </div>
+                      <div className="text-sm text-slate-600">
+                        <strong>Quantity:</strong> {request.quantity}
+                      </div>
+                      <div className="text-sm text-slate-600">
+                        <strong>Reason:</strong> {request.reason}
+                      </div>
+                      <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
+                        request.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
+                        request.status === 'Rejected' ? 'bg-rose-50 text-rose-600' :
+                        'bg-amber-50 text-amber-600'
+                      }`}>
+                        {request.status}
+                      </span>
                     </div>
-                    <div className="text-sm text-slate-600">
-                      <strong>Quantity:</strong> {request.quantity}
-                    </div>
-                    <div className="text-sm text-slate-600">
-                      <strong>Reason:</strong> {request.reason}
-                    </div>
-                    <span className={`inline-block px-2 py-1 rounded text-xs font-medium ${
-                      request.status === 'Approved' ? 'bg-emerald-50 text-emerald-600' :
-                      request.status === 'Rejected' ? 'bg-rose-50 text-rose-600' :
-                      'bg-amber-50 text-amber-600'
-                    }`}>
-                      {request.status}
-                    </span>
-                  </div>
-                  {canManage && request.status === 'Pending' && (
                     <div className="flex space-x-2 ml-4">
-                      <Button
-                        size="sm"
-                        data-testid="approve-inventory-request-btn"
-                        onClick={() => handleApproval(request.request_id, 'Approved')}
-                        className="bg-emerald-600 hover:bg-emerald-700"
-                      >
-                        Approve
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        data-testid="reject-inventory-request-btn"
-                        onClick={() => handleApproval(request.request_id, 'Rejected')}
-                      >
-                        Reject
-                      </Button>
+                      {canManage && request.status === 'Pending' && (
+                        <>
+                          <Button
+                            size="sm"
+                            data-testid="approve-inventory-request-btn"
+                            onClick={() => handleApproval(request.request_id, 'Approved')}
+                            className="bg-emerald-600 hover:bg-emerald-700"
+                          >
+                            Approve
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            data-testid="reject-inventory-request-btn"
+                            onClick={() => handleApproval(request.request_id, 'Rejected')}
+                          >
+                            Reject
+                          </Button>
+                        </>
+                      )}
+                      {canDelete && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          data-testid="delete-inventory-request-btn"
+                          onClick={() => handleDeleteRequestClick(request)}
+                          className="h-8 w-8 p-0"
+                        >
+                          <Trash2 className="h-4 w-4 text-rose-600" />
+                        </Button>
+                      )}
                     </div>
-                  )}
-                </div>
-              </CardContent>
-            </Card>
-          ))}
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       </div>
+
+      {/* Delete Request Confirmation Dialog */}
+      <ConfirmDialog
+        open={deleteRequestDialogOpen}
+        onOpenChange={setDeleteRequestDialogOpen}
+        onConfirm={handleDeleteRequest}
+        title="Delete Inventory Request"
+        description="Are you sure you want to delete this inventory request? This action cannot be undone."
+      />
 
       {items.length === 0 && requests.length === 0 && (
         <Card className="border-slate-200">
