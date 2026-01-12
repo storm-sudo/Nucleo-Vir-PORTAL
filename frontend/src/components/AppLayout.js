@@ -114,6 +114,30 @@ export default function AppLayout() {
                 </Link>
               );
             })}
+            
+            {/* Divider and secondary menu */}
+            <div className="pt-4 mt-4 border-t border-slate-200">
+              {secondaryMenuItems.map((item) => {
+                const Icon = item.icon;
+                const active = isActive(item.path, item.exact);
+                return (
+                  <Link
+                    key={item.path}
+                    to={item.path}
+                    data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    onClick={() => setSidebarOpen(false)}
+                    className={`flex items-center space-x-3 px-3 py-2 rounded-md transition-colors ${
+                      active
+                        ? 'bg-sky-50 text-sky-600 font-medium'
+                        : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                    <span>{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
           </nav>
         </aside>
 
