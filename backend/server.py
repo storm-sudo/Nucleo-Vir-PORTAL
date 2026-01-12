@@ -543,6 +543,65 @@ async def get_attendance_heatmap(session_token: Optional[str] = Cookie(None)):
     records = await db.attendance.find({"user_id": user.user_id}, {"_id": 0}).to_list(1000)
     return records
 
+@api_router.get("/attendance/export")
+async def export_attendance(session_token: Optional[str] = Cookie(None)):
+    """Export attendance data as CSV (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can export attendance data")
+    
+    # Get all attendance records
+    attendance_records = await db.attendance.find({}, {"_id": 0}).to_list(10000)
+    
+    # Get all employees to map user_id to employee details
+    employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
+    users = await db.users.find({}, {"_id": 0}).to_list(1000)
+    
+    # Create user_id to employee mapping
+    user_map = {}
+    for emp in employees:
+        if 'user_id' in emp:
+            user_map[emp['user_id']] = emp
+    
+    # Create user_id to user name mapping
+    user_name_map = {u['user_id']: u['name'] for u in users}
+    
+    # Create CSV in memory
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(['Employee Name', 'Employee ID', 'Date', 'Check-in Time', 'Check-out Time', 'Status'])
+    
+    for record in attendance_records:
+        user_id = record.get('user_id', '')
+        employee = user_map.get(user_id, {})
+        employee_name = employee.get('name', user_name_map.get(user_id, 'Unknown'))
+        employee_id = employee.get('employee_id', 'N/A')
+        date = record.get('date', '')
+        check_in = record.get('check_in', '')
+        check_out = record.get('check_out', '')
+        status = record.get('status', '')
+        
+        # Format times if available
+        if check_in:
+            try:
+                check_in = datetime.fromisoformat(check_in).strftime('%H:%M:%S')
+            except:
+                pass
+        if check_out:
+            try:
+                check_out = datetime.fromisoformat(check_out).strftime('%H:%M:%S')
+            except:
+                pass
+        
+        writer.writerow([employee_name, employee_id, date, check_in, check_out, status])
+    
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=attendance_export.csv"}
+    )
+
 @api_router.post("/leave-requests")
 async def create_leave_request(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Submit leave request"""
