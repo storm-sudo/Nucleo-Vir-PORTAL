@@ -172,8 +172,21 @@ export default function Projects() {
                 <Card key={project.project_id} data-testid="project-card" className="border-slate-200 hover:shadow-lg transition-shadow duration-300 cursor-move">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between">
-                      <CardTitle className="text-base font-heading">{project.title}</CardTitle>
-                      <GripVertical className="h-4 w-4 text-slate-400" />
+                      <div className="flex items-start space-x-2 flex-1">
+                        <GripVertical className="h-4 w-4 text-slate-400 mt-1" />
+                        <CardTitle className="text-base font-heading flex-1">{project.title}</CardTitle>
+                      </div>
+                      {canDelete && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          data-testid="delete-project-btn"
+                          onClick={() => handleDeleteClick(project)}
+                          className="h-8 w-8 p-0 ml-2"
+                        >
+                          <Trash2 className="h-4 w-4 text-rose-600" />
+                        </Button>
+                      )}
                     </div>
                   </CardHeader>
                   <CardContent>
