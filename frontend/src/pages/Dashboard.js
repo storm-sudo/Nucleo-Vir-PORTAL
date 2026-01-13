@@ -33,6 +33,9 @@ export default function Dashboard() {
         <p className="text-slate-600">Welcome back, {user?.name}</p>
       </div>
 
+      {/* Notifications Box */}
+      <NotificationsBox user={user} />
+
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {widgets.map((widget, idx) => {
           const Icon = widget.icon;
