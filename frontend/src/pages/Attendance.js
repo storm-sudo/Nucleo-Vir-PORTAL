@@ -286,7 +286,7 @@ export default function Attendance() {
       )}
 
       {/* Today's Attendance */}
-      {!selectedEmployeeId && (
+      {(!selectedEmployeeId || selectedEmployeeId === 'self') && (
         <Card className="border-slate-200">
           <CardHeader>
             <CardTitle className="text-lg font-heading">Today's Attendance</CardTitle>
