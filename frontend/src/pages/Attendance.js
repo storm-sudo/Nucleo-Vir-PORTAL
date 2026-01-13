@@ -228,7 +228,7 @@ export default function Attendance() {
                 setSearchMonth('');
                 setStartDate('');
                 setEndDate('');
-                setSelectedEmployeeId('');
+                setSelectedEmployeeId('self');
                 fetchAttendance();
                 setStatistics(null);
               }}
