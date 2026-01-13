@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, FileText, ClipboardList, DollarSign, FolderKanban, Package } from 'lucide-react';
+import NotificationsBox from '@/components/NotificationsBox';
 
 const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
 
