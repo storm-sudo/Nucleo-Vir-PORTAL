@@ -15,7 +15,7 @@ export default function Attendance() {
   const [statistics, setStatistics] = useState(null);
   const [todayMarked, setTodayMarked] = useState(false);
   const [employees, setEmployees] = useState([]);
-  const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState('self');
   const [searchMonth, setSearchMonth] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
