@@ -611,6 +611,95 @@ async def export_attendance(session_token: Optional[str] = Cookie(None)):
         headers={"Content-Disposition": "attachment; filename=attendance_export.csv"}
     )
 
+@api_router.get("/attendance/statistics")
+async def get_attendance_statistics(
+    user_id: Optional[str] = None,
+    month: Optional[str] = None,
+    session_token: Optional[str] = Cookie(None)
+):
+    """Get attendance statistics for a user"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # If user_id provided, only admin can view other users
+    target_user_id = user_id if user_id and user.role == 'Admin' else user.user_id
+    
+    # Build query
+    query = {"user_id": target_user_id}
+    if month:
+        # Filter by month (YYYY-MM format)
+        query["date"] = {"$regex": f"^{month}"}
+    
+    # Get attendance records
+    records = await db.attendance.find(query, {"_id": 0}).to_list(1000)
+    
+    # Get leave requests for the same period
+    leave_query = {"user_id": target_user_id, "status": "Approved"}
+    if month:
+        # Filter leaves that fall in this month
+        leave_query["$or"] = [
+            {"start_date": {"$regex": f"^{month}"}},
+            {"end_date": {"$regex": f"^{month}"}}
+        ]
+    leave_records = await db.leave_requests.find(leave_query, {"_id": 0}).to_list(1000)
+    
+    # Calculate statistics
+    total_days = len(records)
+    present_days = len([r for r in records if r.get('status') == 'Present'])
+    absent_days = len([r for r in records if r.get('status') == 'Absent'])
+    leave_days = len([r for r in records if r.get('status') == 'Leave'])
+    
+    # Calculate leave days from approved leave requests
+    approved_leave_days = 0
+    for leave in leave_records:
+        try:
+            start = datetime.fromisoformat(leave['start_date'])
+            end = datetime.fromisoformat(leave['end_date'])
+            approved_leave_days += (end - start).days + 1
+        except:
+            pass
+    
+    return {
+        "user_id": target_user_id,
+        "month": month,
+        "total_days": total_days,
+        "present_days": present_days,
+        "absent_days": absent_days,
+        "leave_days": leave_days,
+        "approved_leave_days": approved_leave_days,
+        "attendance_rate": round((present_days / total_days * 100) if total_days > 0 else 0, 2),
+        "records": records
+    }
+
+@api_router.get("/attendance/search")
+async def search_attendance(
+    user_id: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    session_token: Optional[str] = Cookie(None)
+):
+    """Search attendance records by date range"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # If user_id provided, only admin can view other users
+    target_user_id = user_id if user_id and user.role == 'Admin' else user.user_id
+    
+    query = {"user_id": target_user_id}
+    
+    # Add date range filter
+    if start_date and end_date:
+        query["date"] = {"$gte": start_date, "$lte": end_date}
+    elif start_date:
+        query["date"] = {"$gte": start_date}
+    elif end_date:
+        query["date"] = {"$lte": end_date}
+    
+    records = await db.attendance.find(query, {"_id": 0}).sort([("date", -1)]).to_list(1000)
+    return records
+
 @api_router.post("/leave-requests")
 async def create_leave_request(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Submit leave request"""
