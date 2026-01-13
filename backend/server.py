@@ -236,6 +236,15 @@ class Task(BaseModel):
     status: str  # Today, In Progress, Completed
     created_at: datetime
 
+class Announcement(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    announcement_id: str
+    title: str
+    message: str
+    type: str  # Meeting, General, Urgent
+    created_by: str  # user_id
+    created_at: datetime
+
 # ==================== HELPER FUNCTIONS ====================
 
 async def get_user_from_token(token: Optional[str]) -> Optional[User]:
