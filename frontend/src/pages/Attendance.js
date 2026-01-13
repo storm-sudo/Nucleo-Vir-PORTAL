@@ -83,7 +83,7 @@ export default function Attendance() {
 
     try {
       const params = new URLSearchParams();
-      if (selectedEmployeeId && user.role === 'Admin') {
+      if (selectedEmployeeId && selectedEmployeeId !== 'self' && user.role === 'Admin') {
         params.append('user_id', selectedEmployeeId);
       }
       if (startDate) params.append('start_date', startDate);
