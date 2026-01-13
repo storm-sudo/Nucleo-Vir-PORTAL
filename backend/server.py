@@ -1276,6 +1276,130 @@ async def update_ticket(ticket_id: str, data: Dict[str, Any], session_token: Opt
     
     return {"message": "Ticket updated"}
 
+# ==================== ANNOUNCEMENTS ====================
+
+@api_router.post("/announcements")
+async def create_announcement(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Create announcement (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can create announcements")
+    
+    announcement_doc = {
+        "announcement_id": f"ann_{uuid.uuid4().hex[:12]}",
+        "title": data['title'],
+        "message": data['message'],
+        "type": data.get('type', 'General'),
+        "created_by": user.user_id,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.announcements.insert_one(announcement_doc)
+    return {"message": "Announcement created", "announcement_id": announcement_doc['announcement_id']}
+
+@api_router.get("/announcements")
+async def get_announcements(session_token: Optional[str] = Cookie(None)):
+    """Get all announcements"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Get recent announcements (last 30 days)
+    thirty_days_ago = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+    announcements = await db.announcements.find(
+        {"created_at": {"$gte": thirty_days_ago}},
+        {"_id": 0}
+    ).sort([("created_at", -1)]).to_list(100)
+    
+    return announcements
+
+@api_router.delete("/announcements/{announcement_id}")
+async def delete_announcement(announcement_id: str, session_token: Optional[str] = Cookie(None)):
+    """Delete announcement (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can delete announcements")
+    
+    result = await db.announcements.delete_one({"announcement_id": announcement_id})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Announcement not found")
+    
+    return {"message": "Announcement deleted successfully"}
+
+# ==================== NOTIFICATIONS ====================
+
+@api_router.get("/notifications")
+async def get_notifications(session_token: Optional[str] = Cookie(None)):
+    """Get notifications for current user"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    notifications = []
+    
+    # Get announcements
+    announcements = await db.announcements.find({}, {"_id": 0}).sort([("created_at", -1)]).limit(5).to_list(5)
+    for ann in announcements:
+        notifications.append({
+            "type": "announcement",
+            "title": ann['title'],
+            "message": ann['message'],
+            "announcement_type": ann.get('type', 'General'),
+            "created_at": ann['created_at']
+        })
+    
+    # If admin, add pending requests
+    if user.role in ['Admin', 'HR', 'Accountant']:
+        pending_leaves = await db.leave_requests.count_documents({"status": "Pending"})
+        if pending_leaves > 0:
+            notifications.append({
+                "type": "pending_request",
+                "title": "Pending Leave Requests",
+                "message": f"{pending_leaves} leave request(s) pending approval",
+                "count": pending_leaves,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+        
+        pending_inventory = await db.inventory_requests.count_documents({"status": "Pending"})
+        if pending_inventory > 0:
+            notifications.append({
+                "type": "pending_request",
+                "title": "Pending Inventory Requests",
+                "message": f"{pending_inventory} inventory request(s) pending approval",
+                "count": pending_inventory,
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+        
+        if user.role in ['Admin', 'Accountant']:
+            pending_payments = await db.payment_requests.count_documents({"status": "Pending"})
+            if pending_payments > 0:
+                notifications.append({
+                    "type": "pending_request",
+                    "title": "Pending Payment Requests",
+                    "message": f"{pending_payments} payment request(s) pending approval",
+                    "count": pending_payments,
+                    "created_at": datetime.now(timezone.utc).isoformat()
+                })
+        
+        # Low stock alerts
+        low_stock_items = []
+        items = await db.stationary.find({}, {"_id": 0}).to_list(1000)
+        for item in items:
+            if item['quantity'] <= item['min_stock_level']:
+                low_stock_items.append(item['name'])
+        
+        if low_stock_items:
+            notifications.append({
+                "type": "alert",
+                "title": "Low Stock Alert",
+                "message": f"{len(low_stock_items)} item(s) running low: {', '.join(low_stock_items[:3])}{'...' if len(low_stock_items) > 3 else ''}",
+                "count": len(low_stock_items),
+                "created_at": datetime.now(timezone.utc).isoformat()
+            })
+    
+    return notifications
+
 # ==================== DASHBOARD STATS ====================
 
 @api_router.get("/dashboard/stats")
