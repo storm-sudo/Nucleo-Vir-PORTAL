@@ -60,7 +60,7 @@ export default function Attendance() {
   const fetchStatistics = async () => {
     try {
       const params = new URLSearchParams();
-      if (selectedEmployeeId && user.role === 'Admin') {
+      if (selectedEmployeeId && selectedEmployeeId !== 'self' && user.role === 'Admin') {
         params.append('user_id', selectedEmployeeId);
       }
       if (searchMonth) {
