@@ -179,7 +179,7 @@ export default function Attendance() {
                     <SelectValue placeholder="All employees / My attendance" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">My Attendance</SelectItem>
+                    <SelectItem value="self">My Attendance</SelectItem>
                     {employees.map((emp) => (
                       <SelectItem key={emp.employee_id} value={emp.user_id || emp.employee_id}>
                         {emp.name} - {emp.employee_id}
