@@ -305,7 +305,7 @@ async def get_session_data(session_id: str):
     async with httpx.AsyncClient() as client:
         try:
             response = await client.get(
-                "https://auth.emergentagent.com/auth/v1/env/oauth/session-data",
+                "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
                 headers={"X-Session-ID": session_id}
             )
             response.raise_for_status()
