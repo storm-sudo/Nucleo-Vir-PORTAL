@@ -8,36 +8,52 @@ export default function AuthCallback() {
   const hasProcessed = useRef(false);
 
   useEffect(() => {
-    if (hasProcessed.current) return;
+    console.log('[AuthCallback] Component mounted, hash:', window.location.hash);
+    
+    if (hasProcessed.current) {
+      console.log('[AuthCallback] Already processed, skipping');
+      return;
+    }
     hasProcessed.current = true;
 
     const processSession = async () => {
       const hash = window.location.hash;
+      console.log('[AuthCallback] Processing hash:', hash);
+      
       const params = new URLSearchParams(hash.substring(1));
       const sessionId = params.get('session_id');
+      console.log('[AuthCallback] Extracted session_id:', sessionId ? sessionId.substring(0, 20) + '...' : 'null');
 
       if (!sessionId) {
+        console.log('[AuthCallback] No session_id, navigating to /app');
         navigate('/app');
         return;
       }
 
       try {
+        console.log('[AuthCallback] Calling session-data endpoint...');
         const response = await fetch(
           `${BACKEND_URL}/api/auth/session-data?session_id=${sessionId}`,
           { credentials: 'include' }
         );
 
+        console.log('[AuthCallback] Response status:', response.status);
+        
         if (!response.ok) {
+          const errorText = await response.text();
+          console.error('[AuthCallback] Error response:', errorText);
           throw new Error('Session exchange failed');
         }
 
         const userData = await response.json();
+        console.log('[AuthCallback] User data received:', userData.email);
 
         document.cookie = `session_token=${userData.session_token}; path=/; max-age=${7*24*60*60}; SameSite=None; Secure`;
+        console.log('[AuthCallback] Cookie set, navigating to /app');
 
         navigate('/app', { state: { user: userData }, replace: true });
       } catch (error) {
-        console.error('Auth error:', error);
+        console.error('[AuthCallback] Auth error:', error);
         navigate('/');
       }
     };
