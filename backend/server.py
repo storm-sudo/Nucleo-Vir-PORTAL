@@ -302,14 +302,25 @@ async def get_session_data(session_id: str):
     """Exchange session_id for user data from Emergent Auth"""
     import httpx
     
-    async with httpx.AsyncClient() as client:
+    logger.info(f"Processing session exchange for session_id: {session_id[:20]}...")
+    
+    async with httpx.AsyncClient(follow_redirects=True) as client:
         try:
             response = await client.get(
                 "https://demobackend.emergentagent.com/auth/v1/env/oauth/session-data",
                 headers={"X-Session-ID": session_id}
             )
+            
+            logger.info(f"Auth response status: {response.status_code}")
+            
+            if response.status_code == 404:
+                error_data = response.json()
+                logger.error(f"Auth 404 response: {error_data}")
+                raise HTTPException(status_code=401, detail="Session expired or invalid. Please try logging in again.")
+            
             response.raise_for_status()
             data = response.json()
+            logger.info(f"Auth successful for email: {data.get('email', 'unknown')}")
             
             # Check domain restriction
             email = data.get('email', '')
