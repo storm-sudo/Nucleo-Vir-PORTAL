@@ -1573,6 +1573,21 @@ async def delete_task(task_id: str, session_token: Optional[str] = Cookie(None))
     
     return {"message": "Task deleted successfully"}
 
+# Health check endpoint for Kubernetes deployment
+@api_router.get("/health")
+async def health_check():
+    """Health check endpoint for deployment readiness"""
+    try:
+        # Verify MongoDB connection
+        await client.admin.command('ping')
+        return {"status": "healthy", "database": "connected"}
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return JSONResponse(
+            status_code=503,
+            content={"status": "unhealthy", "database": "disconnected", "error": str(e)}
+        )
+
 # Include router
 app.include_router(api_router)
 
