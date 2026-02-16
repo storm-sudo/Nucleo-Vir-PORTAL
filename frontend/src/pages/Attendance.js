@@ -7,7 +7,7 @@ import { toast } from 'sonner';
 import { CheckCircle, XCircle, Clock, Download, Search, TrendingUp } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from '@/config';
 
 export default function Attendance() {
   const { user } = useOutletContext();

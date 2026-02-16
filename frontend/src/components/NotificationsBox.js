@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { Bell, X, Plus, AlertCircle, Megaphone, AlertTriangle } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from '@/config';
 
 export default function NotificationsBox({ user }) {
   const [notifications, setNotifications] = useState([]);

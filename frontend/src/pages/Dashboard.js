@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Users, FileText, ClipboardList, DollarSign, FolderKanban, Package } from 'lucide-react';
 import NotificationsBox from '@/components/NotificationsBox';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from '@/config';
 
 export default function Dashboard() {
   const { user } = useOutletContext();

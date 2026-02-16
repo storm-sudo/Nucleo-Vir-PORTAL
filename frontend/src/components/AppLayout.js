@@ -7,7 +7,7 @@ import {
   Clock, DollarSign, FolderKanban, BookOpen, Pen, Clipboard
 } from 'lucide-react';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from '@/config';
 
 export default function AppLayout() {
   const navigate = useNavigate();

@@ -9,7 +9,7 @@ import { Plus, Pencil, Trash2, AlertTriangle, Package } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from '@/config';
 
 export default function StationaryInventory() {
   const { user } = useOutletContext();

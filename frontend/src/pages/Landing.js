@@ -5,7 +5,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
 import { Building2, Users, FileText, Calendar, MessageSquare, Microscope, Package, ClipboardList } from 'lucide-react';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from '@/config';
 
 export default function Landing() {
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });

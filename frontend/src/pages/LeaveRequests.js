@@ -9,7 +9,7 @@ import { toast } from 'sonner';
 import { Plus, CheckCircle, XCircle, Clock } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from '@/config';
 
 export default function LeaveRequests() {
   const { user } = useOutletContext();

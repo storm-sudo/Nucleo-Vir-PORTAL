@@ -10,7 +10,7 @@ import { Plus, Package, Trash2 } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import ConfirmDialog from '@/components/ConfirmDialog';
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
+import { BACKEND_URL } from '@/config';
 
 export default function LabInventory() {
   const { user } = useOutletContext();
