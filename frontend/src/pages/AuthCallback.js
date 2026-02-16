@@ -1,8 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-
-// Use environment variable or fallback to current origin for production compatibility
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL || window.location.origin;
+import { BACKEND_URL } from '@/config';
 
 export default function AuthCallback() {
   const navigate = useNavigate();
