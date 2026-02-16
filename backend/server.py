@@ -362,8 +362,11 @@ async def get_session_data(session_id: str):
             }
             
         except httpx.HTTPError as e:
-            logger.error(f"Auth error: {str(e)}")
+            logger.error(f"Auth HTTP error: {str(e)}, Response: {e.response.text if hasattr(e, 'response') and e.response else 'No response'}")
             raise HTTPException(status_code=401, detail="Invalid session")
+        except Exception as e:
+            logger.error(f"Auth unexpected error: {str(e)}")
+            raise HTTPException(status_code=401, detail="Authentication failed")
 
 @api_router.get("/auth/me")
 async def get_current_user(session_token: Optional[str] = Cookie(None), authorization: Optional[str] = None):
