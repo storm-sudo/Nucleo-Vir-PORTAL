@@ -297,6 +297,62 @@ async def send_email_async(recipient: str, subject: str, html_content: str):
 
 # ==================== AUTHENTICATION ROUTES ====================
 
+# Email/Password Login Model
+class LoginRequest(BaseModel):
+    email: str
+    password: str
+
+@api_router.post("/auth/login")
+async def login_with_password(login_data: LoginRequest, response: Response):
+    """Email/password login - users must be pre-created in database"""
+    import hashlib
+    
+    email = login_data.email.lower().strip()
+    password = login_data.password
+    
+    # Find user by email
+    user_doc = await db.users.find_one({"email": email}, {"_id": 0})
+    if not user_doc:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Check password (simple hash comparison)
+    stored_password = user_doc.get("password_hash", "")
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    
+    if stored_password != password_hash:
+        raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Create session
+    session_token = f"session_{uuid.uuid4().hex}"
+    expires_at = datetime.now(timezone.utc) + timedelta(days=7)
+    
+    await db.user_sessions.insert_one({
+        "user_id": user_doc["user_id"],
+        "session_token": session_token,
+        "expires_at": expires_at.isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat()
+    })
+    
+    # Set cookie
+    response.set_cookie(
+        key="session_token",
+        value=session_token,
+        max_age=7*24*60*60,
+        path="/",
+        secure=True,
+        httponly=True,
+        samesite="none"
+    )
+    
+    return {
+        "user_id": user_doc["user_id"],
+        "email": user_doc["email"],
+        "name": user_doc.get("name", ""),
+        "picture": user_doc.get("picture", ""),
+        "role": user_doc.get("role", "Employee"),
+        "session_token": session_token
+    }
+
 @api_router.get("/auth/session-data")
 async def get_session_data(session_id: str):
     """Exchange session_id for user data from Emergent Auth"""
