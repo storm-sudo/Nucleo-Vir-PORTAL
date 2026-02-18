@@ -302,11 +302,13 @@ class LoginRequest(BaseModel):
     email: str
     password: str
 
+# Password hashing with bcrypt
+from passlib.context import CryptContext
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
 @api_router.post("/auth/login")
 async def login_with_password(login_data: LoginRequest, response: Response):
     """Email/password login - users must be pre-created in database"""
-    import hashlib
-    
     email = login_data.email.lower().strip()
     password = login_data.password
     
@@ -315,12 +317,13 @@ async def login_with_password(login_data: LoginRequest, response: Response):
     if not user_doc:
         raise HTTPException(status_code=401, detail="Invalid email or password")
     
-    # Check password (simple hash comparison)
-    stored_password = user_doc.get("password_hash", "")
-    password_hash = hashlib.sha256(password.encode()).hexdigest()
-    
-    if stored_password != password_hash:
+    # Verify password with bcrypt
+    stored_hash = user_doc.get("password_hash", "")
+    if not stored_hash or not pwd_context.verify(password, stored_hash):
         raise HTTPException(status_code=401, detail="Invalid email or password")
+    
+    # Check if must change password
+    must_change = user_doc.get("must_change_password", False)
     
     # Create session
     session_token = f"session_{uuid.uuid4().hex}"
@@ -350,7 +353,8 @@ async def login_with_password(login_data: LoginRequest, response: Response):
         "name": user_doc.get("name", ""),
         "picture": user_doc.get("picture", ""),
         "role": user_doc.get("role", "Employee"),
-        "session_token": session_token
+        "session_token": session_token,
+        "must_change_password": must_change
     }
 
 @api_router.get("/auth/session-data")
