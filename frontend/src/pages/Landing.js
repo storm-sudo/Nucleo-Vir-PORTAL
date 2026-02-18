@@ -1,19 +1,47 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { toast } from 'sonner';
-import { Building2, Users, FileText, Calendar, MessageSquare, Microscope, Package, ClipboardList } from 'lucide-react';
+import { Building2, Users, FileText, Calendar, MessageSquare, Microscope, Package, ClipboardList, LogIn } from 'lucide-react';
 
 import { BACKEND_URL } from '@/config';
 
 export default function Landing() {
+  const navigate = useNavigate();
   const [formData, setFormData] = useState({ name: '', email: '', subject: '', message: '' });
   const [loading, setLoading] = useState(false);
+  const [showLoginModal, setShowLoginModal] = useState(false);
+  const [loginData, setLoginData] = useState({ email: '', password: '' });
+  const [loginLoading, setLoginLoading] = useState(false);
 
-  const handleLogin = () => {
-    const redirectUrl = window.location.origin + '/app';
-    window.location.href = `https://auth.emergentagent.com/?redirect=${encodeURIComponent(redirectUrl)}`;
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setLoginLoading(true);
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(loginData)
+      });
+      
+      if (response.ok) {
+        const userData = await response.json();
+        document.cookie = `session_token=${userData.session_token}; path=/; max-age=${7*24*60*60}; SameSite=None; Secure`;
+        toast.success('Login successful!');
+        navigate('/app', { state: { user: userData }, replace: true });
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Invalid email or password');
+      }
+    } catch (error) {
+      toast.error('Login failed. Please try again.');
+    } finally {
+      setLoginLoading(false);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -42,6 +70,57 @@ export default function Landing() {
 
   return (
     <div className="min-h-screen bg-slate-50">
+      {/* Login Modal */}
+      {showLoginModal && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-[100]">
+          <div className="bg-white rounded-lg p-8 max-w-md w-full mx-4 shadow-2xl">
+            <div className="flex justify-between items-center mb-6">
+              <h2 className="text-2xl font-bold text-slate-900">Employee Login</h2>
+              <button onClick={() => setShowLoginModal(false)} className="text-slate-400 hover:text-slate-600">
+                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+            <form onSubmit={handleLogin} className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Email</label>
+                <Input
+                  type="email"
+                  placeholder="your.name@nucleovir.com"
+                  value={loginData.email}
+                  onChange={(e) => setLoginData({...loginData, email: e.target.value})}
+                  required
+                  data-testid="login-email"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+                <Input
+                  type="password"
+                  placeholder="Enter your password"
+                  value={loginData.password}
+                  onChange={(e) => setLoginData({...loginData, password: e.target.value})}
+                  required
+                  data-testid="login-password"
+                />
+              </div>
+              <Button 
+                type="submit" 
+                className="w-full bg-sky-500 hover:bg-sky-600" 
+                disabled={loginLoading}
+                data-testid="login-submit"
+              >
+                {loginLoading ? 'Signing in...' : 'Sign In'}
+              </Button>
+            </form>
+            <p className="mt-4 text-sm text-slate-500 text-center">
+              Contact your administrator if you need access
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Navigation */}
       <nav className="bg-white/80 backdrop-blur-md border-b border-slate-200 sticky top-0 z-50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -55,8 +134,9 @@ export default function Landing() {
               <a href="#services" className="text-slate-600 hover:text-slate-900 transition-colors">Services</a>
               <a href="#contact" className="text-slate-600 hover:text-slate-900 transition-colors">Contact</a>
             </div>
-            <Button onClick={handleLogin} data-testid="request-access-btn" className="bg-slate-900 hover:bg-slate-800">
-              Request Access
+            <Button onClick={() => setShowLoginModal(true)} data-testid="request-access-btn" className="bg-slate-900 hover:bg-slate-800">
+              <LogIn className="w-4 h-4 mr-2" />
+              Login
             </Button>
           </div>
         </div>
@@ -79,8 +159,9 @@ export default function Landing() {
             <p className="text-lg sm:text-xl text-slate-300 mb-8 leading-relaxed">
               Cutting-edge biotech research and development platform. Streamline your workflows, manage lab operations, and accelerate discoveries.
             </p>
-            <Button onClick={handleLogin} size="lg" data-testid="hero-request-access-btn" className="bg-sky-500 hover:bg-sky-600 text-white shadow-lg">
-              Request Access
+            <Button onClick={() => setShowLoginModal(true)} size="lg" data-testid="hero-request-access-btn" className="bg-sky-500 hover:bg-sky-600 text-white shadow-lg">
+              <LogIn className="w-5 h-5 mr-2" />
+              Employee Login
             </Button>
           </div>
         </div>
