@@ -175,11 +175,14 @@ backend:
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "CRUD for kanban columns with default columns: Backlog, Today, In Progress, Review, Completed"
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED - Fixed ObjectId serialization bug in POST /api/kanban/columns. All CRUD operations working: GET returns default columns, POST creates new columns, DELETE removes columns (Admin only)"
 
   - task: "Lab Notebook with Version History"
     implemented: true
