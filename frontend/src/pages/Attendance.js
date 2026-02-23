@@ -1,10 +1,10 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { CheckCircle, XCircle, Clock, Download, Search, TrendingUp } from 'lucide-react';
+import { CheckCircle, XCircle, Clock, Download, Search, TrendingUp, Upload, FileSpreadsheet, Briefcase } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 
 import { BACKEND_URL } from '@/config';
@@ -13,15 +13,19 @@ export default function Attendance() {
   const { user } = useOutletContext();
   const [attendance, setAttendance] = useState([]);
   const [statistics, setStatistics] = useState(null);
+  const [leaveBalance, setLeaveBalance] = useState(null);
   const [todayMarked, setTodayMarked] = useState(false);
   const [employees, setEmployees] = useState([]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('self');
   const [searchMonth, setSearchMonth] = useState('');
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef(null);
 
   useEffect(() => {
     fetchAttendance();
+    fetchLeaveBalance();
     if (user && user.role === 'Admin') {
       fetchEmployees();
     }
@@ -44,6 +48,20 @@ export default function Attendance() {
       setTodayMarked(marked);
     } catch (error) {
       console.error('Error fetching attendance:', error);
+    }
+  };
+
+  const fetchLeaveBalance = async () => {
+    try {
+      const params = new URLSearchParams();
+      if (selectedEmployeeId && selectedEmployeeId !== 'self' && user?.role === 'Admin') {
+        params.append('user_id', selectedEmployeeId);
+      }
+      const response = await fetch(`${BACKEND_URL}/api/leave-balance?${params}`, { credentials: 'include' });
+      const data = await response.json();
+      setLeaveBalance(data);
+    } catch (error) {
+      console.error('Error fetching leave balance:', error);
     }
   };
 
@@ -144,27 +162,149 @@ export default function Attendance() {
     }
   };
 
+  const handleCSVUpload = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.name.endsWith('.csv')) {
+      toast.error('Please upload a CSV file');
+      return;
+    }
+
+    setUploading(true);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/attendance/upload-csv`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+
+      const data = await response.json();
+      
+      if (response.ok) {
+        toast.success(`Successfully imported ${data.imported_count} attendance records`);
+        fetchAttendance();
+        fetchStatistics();
+      } else {
+        toast.error(data.detail || 'Failed to upload CSV');
+      }
+    } catch (error) {
+      toast.error('An error occurred during upload');
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const isAdmin = user && user.role === 'Admin';
 
   return (
     <div data-testid="attendance-page" className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-slate-900">Attendance</h1>
-          <p className="text-slate-600">Track your attendance and view history</p>
+          <h1 className="text-3xl font-heading font-bold text-slate-900 dark:text-white">Attendance</h1>
+          <p className="text-slate-600 dark:text-slate-400">Track your attendance and view history</p>
         </div>
         {isAdmin && (
-          <Button onClick={handleExportAttendance} data-testid="export-attendance-btn" className="bg-emerald-600 hover:bg-emerald-700">
-            <Download className="h-4 w-4 mr-2" />
-            Download Attendance CSV
-          </Button>
+          <div className="flex gap-2">
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleCSVUpload}
+              accept=".csv"
+              className="hidden"
+            />
+            <Button 
+              onClick={() => fileInputRef.current?.click()} 
+              disabled={uploading}
+              data-testid="upload-csv-btn" 
+              className="bg-sky-600 hover:bg-sky-700"
+            >
+              <Upload className="h-4 w-4 mr-2" />
+              {uploading ? 'Uploading...' : 'Upload CSV'}
+            </Button>
+            <Button onClick={handleExportAttendance} data-testid="export-attendance-btn" className="bg-emerald-600 hover:bg-emerald-700">
+              <Download className="h-4 w-4 mr-2" />
+              Download CSV
+            </Button>
+          </div>
         )}
       </div>
 
+      {/* Leave Balance Card */}
+      {leaveBalance && (
+        <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
+          <CardHeader>
+            <CardTitle className="text-lg font-heading flex items-center dark:text-white">
+              <Briefcase className="h-5 w-5 mr-2 text-sky-500" />
+              Leave Balance {selectedEmployeeId !== 'self' && isAdmin ? `- ${employees.find(e => (e.user_id || e.employee_id) === selectedEmployeeId)?.name || ''}` : ''}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="bg-blue-50 dark:bg-blue-900/30 p-4 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="text-sm text-blue-700 dark:text-blue-300 mb-1">Earned Leave (EL/PL)</div>
+                <div className="flex items-baseline">
+                  <span className="text-2xl font-heading font-bold text-blue-600 dark:text-blue-400">{leaveBalance.earned_leave?.remaining || 0}</span>
+                  <span className="text-sm text-blue-500 dark:text-blue-400 ml-1">/ {leaveBalance.earned_leave?.total || 15}</span>
+                </div>
+              </div>
+              <div className="bg-emerald-50 dark:bg-emerald-900/30 p-4 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                <div className="text-sm text-emerald-700 dark:text-emerald-300 mb-1">Casual Leave (CL)</div>
+                <div className="flex items-baseline">
+                  <span className="text-2xl font-heading font-bold text-emerald-600 dark:text-emerald-400">{leaveBalance.casual_leave?.remaining || 0}</span>
+                  <span className="text-sm text-emerald-500 dark:text-emerald-400 ml-1">/ {leaveBalance.casual_leave?.total || 10}</span>
+                </div>
+              </div>
+              <div className="bg-rose-50 dark:bg-rose-900/30 p-4 rounded-lg border border-rose-200 dark:border-rose-800">
+                <div className="text-sm text-rose-700 dark:text-rose-300 mb-1">Sick Leave (SL)</div>
+                <div className="flex items-baseline">
+                  <span className="text-2xl font-heading font-bold text-rose-600 dark:text-rose-400">{leaveBalance.sick_leave?.remaining || 0}</span>
+                  <span className="text-sm text-rose-500 dark:text-rose-400 ml-1">/ {leaveBalance.sick_leave?.total || 10}</span>
+                </div>
+              </div>
+              <div className="bg-slate-100 dark:bg-slate-700 p-4 rounded-lg border border-slate-200 dark:border-slate-600">
+                <div className="text-sm text-slate-600 dark:text-slate-300 mb-1">Total Remaining</div>
+                <div className="text-2xl font-heading font-bold text-slate-900 dark:text-white">
+                  {(leaveBalance.earned_leave?.remaining || 0) + 
+                   (leaveBalance.casual_leave?.remaining || 0) + 
+                   (leaveBalance.sick_leave?.remaining || 0)} days
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* CSV Upload Instructions for Admin */}
+      {isAdmin && (
+        <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800 border-l-4 border-l-sky-500">
+          <CardContent className="py-4">
+            <div className="flex items-start space-x-3">
+              <FileSpreadsheet className="h-5 w-5 text-sky-500 mt-0.5" />
+              <div>
+                <p className="font-medium text-slate-900 dark:text-white">CSV Upload Format</p>
+                <p className="text-sm text-slate-600 dark:text-slate-400">
+                  Upload biometric attendance CSV with columns: <code className="bg-slate-100 dark:bg-slate-700 px-1 rounded">Emp ID, Date and Time, In Time, Out Time</code>
+                </p>
+                <p className="text-xs text-slate-500 dark:text-slate-500 mt-1">
+                  Example: EMP2025ABC123, 2025-02-23, 09:00:00, 18:00:00
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Search and Filter Section */}
-      <Card className="border-slate-200">
+      <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
         <CardHeader>
-          <CardTitle className="text-lg font-heading flex items-center">
+          <CardTitle className="text-lg font-heading flex items-center dark:text-white">
             <Search className="h-5 w-5 mr-2 text-sky-500" />
             Search Attendance
           </CardTitle>
@@ -173,9 +313,9 @@ export default function Attendance() {
           <div className="grid md:grid-cols-4 gap-4">
             {isAdmin && (
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Employee (Admin View)</label>
-                <Select value={selectedEmployeeId} onValueChange={(val) => setSelectedEmployeeId(val)}>
-                  <SelectTrigger data-testid="employee-select">
+                <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Employee (Admin View)</label>
+                <Select value={selectedEmployeeId} onValueChange={(val) => { setSelectedEmployeeId(val); fetchLeaveBalance(); }}>
+                  <SelectTrigger data-testid="employee-select" className="dark:bg-slate-700 dark:border-slate-600">
                     <SelectValue placeholder="All employees / My attendance" />
                   </SelectTrigger>
                   <SelectContent>
@@ -190,31 +330,34 @@ export default function Attendance() {
               </div>
             )}
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Month</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Month</label>
               <Input
                 type="month"
                 data-testid="month-filter"
                 value={searchMonth}
                 onChange={(e) => setSearchMonth(e.target.value)}
                 placeholder="YYYY-MM"
+                className="dark:bg-slate-700 dark:border-slate-600"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">Start Date</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Start Date</label>
               <Input
                 type="date"
                 data-testid="start-date-filter"
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
+                className="dark:bg-slate-700 dark:border-slate-600"
               />
             </div>
             <div>
-              <label className="block text-sm font-medium text-slate-700 mb-1">End Date</label>
+              <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">End Date</label>
               <Input
                 type="date"
                 data-testid="end-date-filter"
                 value={endDate}
                 onChange={(e) => setEndDate(e.target.value)}
+                className="dark:bg-slate-700 dark:border-slate-600"
               />
             </div>
           </div>
@@ -231,9 +374,11 @@ export default function Attendance() {
                 setSelectedEmployeeId('self');
                 fetchAttendance();
                 setStatistics(null);
+                fetchLeaveBalance();
               }}
               variant="outline"
               data-testid="clear-filters-btn"
+              className="dark:border-slate-600 dark:text-slate-200"
             >
               Clear Filters
             </Button>
@@ -243,42 +388,42 @@ export default function Attendance() {
 
       {/* Statistics Card */}
       {statistics && (
-        <Card className="border-slate-200">
+        <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
           <CardHeader>
-            <CardTitle className="text-lg font-heading flex items-center">
+            <CardTitle className="text-lg font-heading flex items-center dark:text-white">
               <TrendingUp className="h-5 w-5 mr-2 text-sky-500" />
               Attendance Statistics {searchMonth && `- ${searchMonth}`}
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="grid sm:grid-cols-2 lg:grid-cols-5 gap-4">
-              <div className="bg-slate-50 p-4 rounded-lg border border-slate-200">
-                <div className="text-sm text-slate-600 mb-1">Total Days</div>
-                <div className="text-2xl font-heading font-bold text-slate-900">{statistics.total_days}</div>
+              <div className="bg-slate-50 dark:bg-slate-700 p-4 rounded-lg border border-slate-200 dark:border-slate-600">
+                <div className="text-sm text-slate-600 dark:text-slate-300 mb-1">Total Days</div>
+                <div className="text-2xl font-heading font-bold text-slate-900 dark:text-white">{statistics.total_days}</div>
               </div>
-              <div className="bg-emerald-50 p-4 rounded-lg border border-emerald-200">
-                <div className="text-sm text-emerald-700 mb-1">Present Days</div>
-                <div className="text-2xl font-heading font-bold text-emerald-600">{statistics.present_days}</div>
+              <div className="bg-emerald-50 dark:bg-emerald-900/30 p-4 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                <div className="text-sm text-emerald-700 dark:text-emerald-300 mb-1">Present Days</div>
+                <div className="text-2xl font-heading font-bold text-emerald-600 dark:text-emerald-400">{statistics.present_days}</div>
               </div>
-              <div className="bg-rose-50 p-4 rounded-lg border border-rose-200">
-                <div className="text-sm text-rose-700 mb-1">Absent Days</div>
-                <div className="text-2xl font-heading font-bold text-rose-600">{statistics.absent_days}</div>
+              <div className="bg-rose-50 dark:bg-rose-900/30 p-4 rounded-lg border border-rose-200 dark:border-rose-800">
+                <div className="text-sm text-rose-700 dark:text-rose-300 mb-1">Absent Days</div>
+                <div className="text-2xl font-heading font-bold text-rose-600 dark:text-rose-400">{statistics.absent_days}</div>
               </div>
-              <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
-                <div className="text-sm text-amber-700 mb-1">Leave Days</div>
-                <div className="text-2xl font-heading font-bold text-amber-600">
+              <div className="bg-amber-50 dark:bg-amber-900/30 p-4 rounded-lg border border-amber-200 dark:border-amber-800">
+                <div className="text-sm text-amber-700 dark:text-amber-300 mb-1">Leave Days</div>
+                <div className="text-2xl font-heading font-bold text-amber-600 dark:text-amber-400">
                   {statistics.leave_days}
                   {statistics.approved_leave_days > 0 && (
                     <span className="text-sm font-normal"> ({statistics.approved_leave_days} approved)</span>
                   )}
                 </div>
               </div>
-              <div className="bg-sky-50 p-4 rounded-lg border border-sky-200">
-                <div className="text-sm text-sky-700 mb-1">Attendance Rate</div>
-                <div className="text-2xl font-heading font-bold text-sky-600">{statistics.attendance_rate}%</div>
+              <div className="bg-sky-50 dark:bg-sky-900/30 p-4 rounded-lg border border-sky-200 dark:border-sky-800">
+                <div className="text-sm text-sky-700 dark:text-sky-300 mb-1">Attendance Rate</div>
+                <div className="text-2xl font-heading font-bold text-sky-600 dark:text-sky-400">{statistics.attendance_rate}%</div>
               </div>
             </div>
-            <p className="text-xs text-slate-500 mt-4">
+            <p className="text-xs text-slate-500 dark:text-slate-400 mt-4">
               * Leave days include approved leave requests. Attendance rate = (Present days / Total days) × 100
             </p>
           </CardContent>
@@ -287,15 +432,15 @@ export default function Attendance() {
 
       {/* Today's Attendance */}
       {(!selectedEmployeeId || selectedEmployeeId === 'self') && (
-        <Card className="border-slate-200">
+        <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
           <CardHeader>
-            <CardTitle className="text-lg font-heading">Today's Attendance</CardTitle>
+            <CardTitle className="text-lg font-heading dark:text-white">Today's Attendance</CardTitle>
           </CardHeader>
           <CardContent>
             {!todayMarked ? (
               <div className="text-center py-8">
                 <Clock className="h-12 w-12 text-amber-500 mx-auto mb-4" />
-                <p className="text-slate-600 mb-4">You haven't marked your attendance today</p>
+                <p className="text-slate-600 dark:text-slate-400 mb-4">You haven't marked your attendance today</p>
                 <Button onClick={handleMarkAttendance} data-testid="mark-attendance-btn" className="bg-emerald-600 hover:bg-emerald-700">
                   <CheckCircle className="h-4 w-4 mr-2" />
                   Mark Present
@@ -304,7 +449,7 @@ export default function Attendance() {
             ) : (
               <div className="text-center py-8">
                 <CheckCircle className="h-12 w-12 text-emerald-500 mx-auto mb-4" />
-                <p className="text-slate-600">Attendance marked for today</p>
+                <p className="text-slate-600 dark:text-slate-400">Attendance marked for today</p>
               </div>
             )}
           </CardContent>
@@ -312,12 +457,12 @@ export default function Attendance() {
       )}
 
       {/* Attendance History */}
-      <Card className="border-slate-200">
+      <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
         <CardHeader>
-          <CardTitle className="text-lg font-heading">
+          <CardTitle className="text-lg font-heading dark:text-white">
             Attendance History
             {attendance.length > 0 && (
-              <span className="text-sm font-normal text-slate-500 ml-2">({attendance.length} records)</span>
+              <span className="text-sm font-normal text-slate-500 dark:text-slate-400 ml-2">({attendance.length} records)</span>
             )}
           </CardTitle>
         </CardHeader>
@@ -325,18 +470,19 @@ export default function Attendance() {
           {attendance.length > 0 ? (
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {attendance.slice(0, 50).map((record) => (
-                <div key={record.attendance_id} className="flex justify-between items-center p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                <div key={record.attendance_id} className="flex justify-between items-center p-3 border border-slate-200 dark:border-slate-700 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-700 transition-colors">
                   <div>
-                    <div className="font-medium text-slate-900">{record.date}</div>
-                    <div className="text-sm text-slate-500">
+                    <div className="font-medium text-slate-900 dark:text-white">{record.date}</div>
+                    <div className="text-sm text-slate-500 dark:text-slate-400">
                       {record.check_in && `Check-in: ${new Date(record.check_in).toLocaleTimeString()}`}
+                      {record.check_out && ` | Check-out: ${new Date(record.check_out).toLocaleTimeString()}`}
                     </div>
                   </div>
                   <span className={`inline-flex items-center px-3 py-1 rounded-full text-sm font-medium ${
-                    record.status === 'Present' ? 'bg-emerald-50 text-emerald-600' :
-                    record.status === 'Absent' ? 'bg-rose-50 text-rose-600' :
-                    record.status === 'Leave' ? 'bg-amber-50 text-amber-600' :
-                    'bg-slate-100 text-slate-600'
+                    record.status === 'Present' ? 'bg-emerald-50 text-emerald-600 dark:bg-emerald-900/30 dark:text-emerald-400' :
+                    record.status === 'Absent' ? 'bg-rose-50 text-rose-600 dark:bg-rose-900/30 dark:text-rose-400' :
+                    record.status === 'Leave' ? 'bg-amber-50 text-amber-600 dark:bg-amber-900/30 dark:text-amber-400' :
+                    'bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300'
                   }`}>
                     {record.status === 'Present' && <CheckCircle className="h-4 w-4 mr-1" />}
                     {record.status === 'Absent' && <XCircle className="h-4 w-4 mr-1" />}
@@ -347,7 +493,7 @@ export default function Attendance() {
               ))}
             </div>
           ) : (
-            <p className="text-center text-slate-600 py-8">No attendance records found for the selected filters</p>
+            <p className="text-center text-slate-600 dark:text-slate-400 py-8">No attendance records found for the selected filters</p>
           )}
         </CardContent>
       </Card>
