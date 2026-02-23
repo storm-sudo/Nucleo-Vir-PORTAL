@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -6,26 +6,39 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
-import { Plus, GripVertical, Trash2, Clock, AlertCircle } from 'lucide-react';
+import { Plus, Clock, Columns, Trash2 } from 'lucide-react';
 import { useOutletContext } from 'react-router-dom';
 import ConfirmDialog from '@/components/ConfirmDialog';
+import KanbanBoard from '@/components/KanbanBoard';
 
 import { BACKEND_URL } from '@/config';
+
+const DEFAULT_COLUMNS = [
+  { id: 'backlog', name: 'Backlog', order: 0 },
+  { id: 'today', name: 'Today', order: 1 },
+  { id: 'in-progress', name: 'In Progress', order: 2 },
+  { id: 'review', name: 'Review', order: 3 },
+  { id: 'completed', name: 'Completed', order: 4 }
+];
 
 export default function WorkAssignments() {
   const { user } = useOutletContext();
   const [tasks, setTasks] = useState([]);
+  const [columns, setColumns] = useState(DEFAULT_COLUMNS);
   const [employees, setEmployees] = useState([]);
   const [users, setUsers] = useState([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [columnDialogOpen, setColumnDialogOpen] = useState(false);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [selectedTask, setSelectedTask] = useState(null);
+  const [newColumnName, setNewColumnName] = useState('');
   const [formData, setFormData] = useState({
-    title: '', description: '', assigned_to: '', due_date: '', priority: 'Medium', status: 'Today'
+    title: '', description: '', assigned_to: '', due_date: '', priority: 'Medium', status: 'Backlog'
   });
 
   useEffect(() => {
     fetchTasks();
+    fetchColumns();
     if (user && user.role === 'Admin') {
       fetchEmployees();
       fetchUsers();
@@ -36,9 +49,33 @@ export default function WorkAssignments() {
     try {
       const response = await fetch(`${BACKEND_URL}/api/tasks`, { credentials: 'include' });
       const data = await response.json();
-      setTasks(data);
+      
+      // Get employee names for display
+      const employeeResponse = await fetch(`${BACKEND_URL}/api/employees`, { credentials: 'include' });
+      const employeesData = await employeeResponse.json();
+      
+      const tasksWithNames = data.map(task => {
+        const emp = employeesData.find(e => e.user_id === task.assigned_to || e.employee_id === task.assigned_to);
+        return { ...task, assigned_to_name: emp?.name || 'Unassigned' };
+      });
+      
+      setTasks(tasksWithNames);
     } catch (error) {
       console.error('Error fetching tasks:', error);
+    }
+  };
+
+  const fetchColumns = async () => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/kanban/columns`, { credentials: 'include' });
+      if (response.ok) {
+        const data = await response.json();
+        if (data.length > 0) {
+          setColumns(data);
+        }
+      }
+    } catch (error) {
+      console.error('Error fetching columns:', error);
     }
   };
 
@@ -54,8 +91,6 @@ export default function WorkAssignments() {
 
   const fetchUsers = async () => {
     try {
-      // We'll need a users endpoint or use employees
-      // For now, we'll use employees as a proxy
       setUsers(employees);
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -75,7 +110,7 @@ export default function WorkAssignments() {
       if (response.ok) {
         toast.success('Task created successfully');
         setDialogOpen(false);
-        setFormData({ title: '', description: '', assigned_to: '', due_date: '', priority: 'Medium', status: 'Today' });
+        setFormData({ title: '', description: '', assigned_to: '', due_date: '', priority: 'Medium', status: 'Backlog' });
         fetchTasks();
       } else {
         const data = await response.json();
@@ -86,20 +121,24 @@ export default function WorkAssignments() {
     }
   };
 
-  const updateTaskStatus = async (taskId, status) => {
+  const handleTaskMove = async (taskId, newStatus) => {
     try {
       const response = await fetch(`${BACKEND_URL}/api/tasks/${taskId}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
-        body: JSON.stringify({ status })
+        body: JSON.stringify({ status: newStatus })
       });
       
       if (response.ok) {
-        fetchTasks();
+        // Optimistically update UI
+        setTasks(prev => prev.map(task => 
+          task.task_id === taskId ? { ...task, status: newStatus } : task
+        ));
       }
     } catch (error) {
       console.error('Error updating task:', error);
+      fetchTasks(); // Revert on error
     }
   };
 
@@ -129,115 +168,210 @@ export default function WorkAssignments() {
     }
   };
 
-  const isAdmin = user && user.role === 'Admin';
-  const columns = ['Today', 'In Progress', 'Completed'];
+  const handleAddColumn = async () => {
+    if (!newColumnName.trim()) return;
+    
+    const newColumn = {
+      id: newColumnName.toLowerCase().replace(/\s+/g, '-'),
+      name: newColumnName,
+      order: columns.length
+    };
 
-  const getPriorityColor = (priority) => {
-    switch (priority) {
-      case 'High':
-        return 'bg-rose-50 text-rose-600 border-rose-200';
-      case 'Medium':
-        return 'bg-amber-50 text-amber-600 border-amber-200';
-      case 'Low':
-        return 'bg-slate-100 text-slate-600 border-slate-200';
-      default:
-        return 'bg-slate-100 text-slate-600 border-slate-200';
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/kanban/columns`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify(newColumn)
+      });
+
+      if (response.ok) {
+        setColumns([...columns, newColumn]);
+        setNewColumnName('');
+        setColumnDialogOpen(false);
+        toast.success('Column added successfully');
+      }
+    } catch (error) {
+      toast.error('Failed to add column');
     }
   };
 
-  const isOverdue = (dueDate) => {
-    if (!dueDate) return false;
-    return new Date(dueDate) < new Date();
+  const handleDeleteColumn = async (columnId) => {
+    if (columns.length <= 3) {
+      toast.error('Cannot delete column. Minimum 3 columns required.');
+      return;
+    }
+
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/kanban/columns/${columnId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+
+      if (response.ok) {
+        setColumns(columns.filter(c => c.id !== columnId));
+        toast.success('Column deleted');
+      }
+    } catch (error) {
+      toast.error('Failed to delete column');
+    }
   };
+
+  const isAdmin = user && user.role === 'Admin';
 
   return (
     <div data-testid="work-assignments-page" className="space-y-6">
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
-          <h1 className="text-3xl font-heading font-bold text-slate-900">
+          <h1 className="text-3xl font-heading font-bold text-slate-900 dark:text-white">
             {isAdmin ? 'Work Assignments' : 'My Tasks'}
           </h1>
-          <p className="text-slate-600">
+          <p className="text-slate-600 dark:text-slate-400">
             {isAdmin ? 'Manage and assign tasks to team members' : 'View and update your assigned tasks'}
           </p>
         </div>
-        {isAdmin && (
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-            <DialogTrigger asChild>
-              <Button data-testid="create-task-btn" className="bg-slate-900 hover:bg-slate-800">
-                <Plus className="h-4 w-4 mr-2" />
-                Create Task
-              </Button>
-            </DialogTrigger>
-            <DialogContent className="max-w-lg">
-              <DialogHeader>
-                <DialogTitle>Create Work Assignment</DialogTitle>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Title</label>
-                  <Input
-                    data-testid="task-title-input"
-                    value={formData.title}
-                    onChange={(e) => setFormData({...formData, title: e.target.value})}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
-                  <Textarea
-                    data-testid="task-description-textarea"
-                    value={formData.description}
-                    onChange={(e) => setFormData({...formData, description: e.target.value})}
-                    required
-                    rows={3}
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Assign To</label>
-                  <Select value={formData.assigned_to} onValueChange={(val) => setFormData({...formData, assigned_to: val})}>
-                    <SelectTrigger data-testid="task-assign-to-select">
-                      <SelectValue placeholder="Select employee" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {employees.map((emp) => (
-                        <SelectItem key={emp.employee_id} value={emp.user_id || emp.employee_id}>
-                          {emp.name} - {emp.department}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Due Date</label>
-                  <Input
-                    data-testid="task-due-date-input"
-                    type="date"
-                    value={formData.due_date}
-                    onChange={(e) => setFormData({...formData, due_date: e.target.value})}
-                    required
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-medium text-slate-700 mb-1">Priority</label>
-                  <Select value={formData.priority} onValueChange={(val) => setFormData({...formData, priority: val})}>
-                    <SelectTrigger data-testid="task-priority-select">
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Low">Low</SelectItem>
-                      <SelectItem value="Medium">Medium</SelectItem>
-                      <SelectItem value="High">High</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <Button type="submit" data-testid="task-submit-btn" className="w-full bg-slate-900 hover:bg-slate-800">
-                  Create Task
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
-        )}
+        <div className="flex gap-2">
+          {isAdmin && (
+            <>
+              <Dialog open={columnDialogOpen} onOpenChange={setColumnDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button variant="outline" className="dark:border-slate-600 dark:text-slate-200">
+                    <Columns className="h-4 w-4 mr-2" />
+                    Add Column
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle>Add New Column</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Column Name</label>
+                      <Input
+                        value={newColumnName}
+                        onChange={(e) => setNewColumnName(e.target.value)}
+                        placeholder="e.g., Blocked, Testing"
+                      />
+                    </div>
+                    <Button onClick={handleAddColumn} className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-sky-600 dark:hover:bg-sky-700">
+                      Add Column
+                    </Button>
+                    
+                    <div className="border-t pt-4 mt-4">
+                      <p className="text-sm font-medium text-slate-700 dark:text-slate-300 mb-2">Current Columns:</p>
+                      <div className="space-y-2">
+                        {columns.map(col => (
+                          <div key={col.id} className="flex justify-between items-center p-2 bg-slate-50 dark:bg-slate-700 rounded">
+                            <span className="text-sm dark:text-slate-200">{col.name}</span>
+                            {columns.length > 3 && (
+                              <Button 
+                                size="sm" 
+                                variant="ghost" 
+                                onClick={() => handleDeleteColumn(col.id)}
+                                className="h-6 w-6 p-0 text-rose-500 hover:text-rose-600"
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+                <DialogTrigger asChild>
+                  <Button data-testid="create-task-btn" className="bg-slate-900 hover:bg-slate-800 dark:bg-sky-600 dark:hover:bg-sky-700">
+                    <Plus className="h-4 w-4 mr-2" />
+                    Create Task
+                  </Button>
+                </DialogTrigger>
+                <DialogContent className="max-w-lg">
+                  <DialogHeader>
+                    <DialogTitle>Create Work Assignment</DialogTitle>
+                  </DialogHeader>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Title</label>
+                      <Input
+                        data-testid="task-title-input"
+                        value={formData.title}
+                        onChange={(e) => setFormData({...formData, title: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Description</label>
+                      <Textarea
+                        data-testid="task-description-textarea"
+                        value={formData.description}
+                        onChange={(e) => setFormData({...formData, description: e.target.value})}
+                        required
+                        rows={3}
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Assign To</label>
+                      <Select value={formData.assigned_to} onValueChange={(val) => setFormData({...formData, assigned_to: val})}>
+                        <SelectTrigger data-testid="task-assign-to-select">
+                          <SelectValue placeholder="Select employee" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {employees.map((emp) => (
+                            <SelectItem key={emp.employee_id} value={emp.user_id || emp.employee_id}>
+                              {emp.name} - {emp.department}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Status</label>
+                      <Select value={formData.status} onValueChange={(val) => setFormData({...formData, status: val})}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {columns.map(col => (
+                            <SelectItem key={col.id} value={col.name}>{col.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Due Date</label>
+                      <Input
+                        data-testid="task-due-date-input"
+                        type="date"
+                        value={formData.due_date}
+                        onChange={(e) => setFormData({...formData, due_date: e.target.value})}
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Priority</label>
+                      <Select value={formData.priority} onValueChange={(val) => setFormData({...formData, priority: val})}>
+                        <SelectTrigger data-testid="task-priority-select">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Low">Low</SelectItem>
+                          <SelectItem value="Medium">Medium</SelectItem>
+                          <SelectItem value="High">High</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <Button type="submit" data-testid="task-submit-btn" className="w-full bg-slate-900 hover:bg-slate-800 dark:bg-sky-600 dark:hover:bg-sky-700">
+                      Create Task
+                    </Button>
+                  </form>
+                </DialogContent>
+              </Dialog>
+            </>
+          )}
+        </div>
       </div>
 
       {/* Delete Confirmation Dialog */}
@@ -250,82 +384,21 @@ export default function WorkAssignments() {
       />
 
       {/* Kanban Board */}
-      <div className="grid md:grid-cols-3 gap-6">
-        {columns.map((column) => (
-          <div key={column} className="space-y-4">
-            <div className="bg-slate-100 p-3 rounded-lg">
-              <h3 className="font-heading font-semibold text-slate-900">{column}</h3>
-              <p className="text-sm text-slate-500">
-                {tasks.filter(t => t.status === column).length} tasks
-              </p>
-            </div>
-            <div className="space-y-3 min-h-[400px]">
-              {tasks.filter(t => t.status === column).map((task) => {
-                const overdue = isOverdue(task.due_date) && column !== 'Completed';
-                return (
-                  <Card key={task.task_id} data-testid="task-card" className={`border-slate-200 hover:shadow-lg transition-shadow duration-300 cursor-move ${overdue ? 'border-l-4 border-l-rose-500' : ''}`}>
-                    <CardHeader className="pb-3">
-                      <div className="flex items-start justify-between">
-                        <div className="flex items-start space-x-2 flex-1">
-                          <GripVertical className="h-4 w-4 text-slate-400 mt-1" />
-                          <div className="flex-1">
-                            <CardTitle className="text-base font-heading mb-2">{task.title}</CardTitle>
-                            <div className="flex flex-wrap gap-2">
-                              <span className={`inline-block px-2 py-1 rounded text-xs font-medium border ${getPriorityColor(task.priority)}`}>
-                                {task.priority}
-                              </span>
-                              {overdue && (
-                                <span className="inline-flex items-center px-2 py-1 rounded text-xs font-medium bg-rose-50 text-rose-600 border border-rose-200">
-                                  <AlertCircle className="h-3 w-3 mr-1" />
-                                  Overdue
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                        {isAdmin && (
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            data-testid="delete-task-btn"
-                            onClick={() => handleDeleteClick(task)}
-                            className="h-8 w-8 p-0 ml-2"
-                          >
-                            <Trash2 className="h-4 w-4 text-rose-600" />
-                          </Button>
-                        )}
-                      </div>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <p className="text-sm text-slate-600">{task.description}</p>
-                      <div className="flex items-center text-xs text-slate-500">
-                        <Clock className="h-3 w-3 mr-1" />
-                        Due: {new Date(task.due_date).toLocaleDateString()}
-                      </div>
-                      <Select value={task.status} onValueChange={(val) => updateTaskStatus(task.task_id, val)}>
-                        <SelectTrigger className="h-8 text-xs" data-testid="task-status-select">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="Today">Today</SelectItem>
-                          <SelectItem value="In Progress">In Progress</SelectItem>
-                          <SelectItem value="Completed">Completed</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </CardContent>
-                  </Card>
-                );
-              })}
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {tasks.length === 0 && (
-        <Card className="border-slate-200">
+      {tasks.length > 0 || isAdmin ? (
+        <div className="overflow-x-auto pb-4">
+          <KanbanBoard
+            tasks={tasks}
+            columns={columns}
+            onTaskMove={handleTaskMove}
+            onDeleteTask={handleDeleteClick}
+            isAdmin={isAdmin}
+          />
+        </div>
+      ) : (
+        <Card className="border-slate-200 dark:border-slate-700 dark:bg-slate-800">
           <CardContent className="py-12 text-center">
             <Clock className="h-12 w-12 text-slate-400 mx-auto mb-4" />
-            <p className="text-slate-600">
+            <p className="text-slate-600 dark:text-slate-400">
               {isAdmin ? 'No tasks created yet. Create your first task to get started!' : 'No tasks assigned to you yet.'}
             </p>
           </CardContent>
