@@ -101,3 +101,177 @@
 #====================================================================================================
 # Testing Data - Main Agent and testing sub agent both should log testing data below this section
 #====================================================================================================
+
+user_problem_statement: |
+  Implement the following features in Nucleo-vir Therapeutics Enterprise Portal:
+  1. Verify email/password login is working
+  2. Dashboard Quick Actions - Make functional, add backend endpoints, allow customization
+  3. Light/Dark Mode Toggle - Add toggle, persist preference
+  4. Attendance Module - CSV upload from biometric, leave balances (EL:15, CL:10, SL:10)
+  5. Work Assignment Tab - Trello-like Kanban with custom columns, drag-and-drop
+  6. Lab Notebook Tab - Rich text (TipTap), templates, tagging, search, version history
+
+backend:
+  - task: "Email/Password Login API"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: false
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "Login API working - tested with shahebaz.kazi@nucleovir.com"
+
+  - task: "User Preferences API (theme, quick_actions)"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET and PUT /api/user/preferences endpoints added and tested"
+
+  - task: "Leave Balance API"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "GET /api/leave-balance with EL:15, CL:10, SL:10 defaults"
+
+  - task: "Attendance CSV Upload API"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "POST /api/attendance/upload-csv - parses Emp ID, Date, In Time, Out Time"
+
+  - task: "Kanban Columns API"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "CRUD for kanban columns with default columns: Backlog, Today, In Progress, Review, Completed"
+
+  - task: "Lab Notebook with Version History"
+    implemented: true
+    working: true
+    file: "backend/server.py"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: true
+        agent: "main"
+        comment: "PUT /api/lab-notebook/{id} with version tracking, GET /api/lab-notebook/{id}/history"
+
+frontend:
+  - task: "Theme Toggle (Light/Dark Mode)"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/contexts/ThemeContext.js, frontend/src/components/ThemeToggle.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "ThemeProvider context and ThemeToggle component added to AppLayout header"
+
+  - task: "Dashboard Quick Actions"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/Dashboard.js, frontend/src/components/QuickActionsCustomizer.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "Functional quick actions with customize dialog, 8 available actions"
+
+  - task: "Attendance CSV Upload & Leave Balance"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/Attendance.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "CSV upload UI for admins, leave balance card showing EL/CL/SL"
+
+  - task: "Kanban Board with Drag-Drop"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/WorkAssignments.js, frontend/src/components/KanbanBoard.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "DnD kit Kanban board with custom columns (Admin can add/delete columns)"
+
+  - task: "Lab Notebook Rich Editor"
+    implemented: true
+    working: "NA"
+    file: "frontend/src/pages/LabNotebook.js, frontend/src/components/RichTextEditor.js"
+    stuck_count: 0
+    priority: "high"
+    needs_retesting: true
+    status_history:
+      - working: "NA"
+        agent: "main"
+        comment: "TipTap rich editor with templates (Experiment, SOP, Meeting), version history, tagging, search"
+
+metadata:
+  created_by: "main_agent"
+  version: "1.0"
+  test_sequence: 1
+  run_ui: false
+
+test_plan:
+  current_focus:
+    - "Email/Password Login API"
+    - "User Preferences API"
+    - "Leave Balance API"
+    - "Attendance CSV Upload API"
+    - "Kanban Columns API"
+    - "Lab Notebook with Version History"
+  stuck_tasks: []
+  test_all: true
+  test_priority: "high_first"
+
+agent_communication:
+  - agent: "main"
+    message: |
+      Implemented all 6 requested features:
+      1. Login - Working (tested with shahebaz.kazi@nucleovir.com / JgCMqw5uUWvF)
+      2. Dashboard Quick Actions - Functional with customization modal
+      3. Light/Dark Mode Toggle - Added to AppLayout header with localStorage persistence
+      4. Attendance - CSV upload API and leave balance display (EL:15, CL:10, SL:10)
+      5. Work Assignments - Kanban board with @dnd-kit, custom columns
+      6. Lab Notebook - TipTap rich editor, templates, version history, tagging/search
+      
+      Please test all backend APIs first.
