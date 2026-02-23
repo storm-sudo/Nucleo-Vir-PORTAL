@@ -197,7 +197,8 @@ export default function KanbanBoard({ tasks, columns, onTaskMove, onDeleteTask, 
                       onStatusChange={onStatusChange}
                       columns={columns}
                     />
-                  ))}n                </div>
+                  ))}
+                </div>
               </SortableContext>
             </div>
           );
