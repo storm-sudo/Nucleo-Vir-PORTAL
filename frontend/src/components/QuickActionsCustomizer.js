@@ -82,7 +82,8 @@ export default function QuickActionsCustomizer({ open, onOpenChange, selectedAct
                 <span className="text-sm font-medium text-slate-900 dark:text-white">{action.label}</span>
               </div>
             );
-          })}n        </div>
+          })}
+        </div>
         <div className="flex justify-end space-x-2 mt-4">
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
