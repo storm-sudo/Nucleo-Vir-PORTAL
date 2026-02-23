@@ -145,11 +145,14 @@ backend:
     file: "backend/server.py"
     stuck_count: 0
     priority: "high"
-    needs_retesting: true
+    needs_retesting: false
     status_history:
       - working: true
         agent: "main"
         comment: "GET /api/leave-balance with EL:15, CL:10, SL:10 defaults"
+      - working: true
+        agent: "testing"
+        comment: "✅ VERIFIED - GET /api/leave-balance returns correct defaults: EL=15, CL=10, SL=10 with proper used/remaining calculations"
 
   - task: "Attendance CSV Upload API"
     implemented: true
