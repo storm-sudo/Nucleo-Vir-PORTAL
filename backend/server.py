@@ -1662,6 +1662,349 @@ async def health_check():
             content={"status": "unhealthy", "database": "disconnected", "error": str(e)}
         )
 
+# ==================== USER PREFERENCES ====================
+
+@api_router.get("/user/preferences")
+async def get_user_preferences(session_token: Optional[str] = Cookie(None)):
+    """Get user preferences (theme, quick_actions)"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    prefs = await db.user_preferences.find_one({"user_id": user.user_id}, {"_id": 0})
+    if not prefs:
+        prefs = {
+            "user_id": user.user_id,
+            "theme": "light",
+            "quick_actions": ["mark_attendance", "request_leave", "create_ticket", "request_material"]
+        }
+    return prefs
+
+@api_router.put("/user/preferences")
+async def update_user_preferences(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Update user preferences"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    await db.user_preferences.update_one(
+        {"user_id": user.user_id},
+        {"$set": data},
+        upsert=True
+    )
+    return {"message": "Preferences updated"}
+
+# ==================== LEAVE BALANCE ====================
+
+@api_router.get("/leave-balance")
+async def get_leave_balance(user_id: Optional[str] = None, session_token: Optional[str] = Cookie(None)):
+    """Get leave balance for user"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    target_user_id = user_id if user_id and user.role == 'Admin' else user.user_id
+    
+    # Get or create leave balance
+    balance = await db.leave_balances.find_one({"user_id": target_user_id}, {"_id": 0})
+    
+    if not balance:
+        # Create default balance
+        current_year = datetime.now().year
+        balance = {
+            "user_id": target_user_id,
+            "year": current_year,
+            "earned_leave": {"total": 15, "used": 0, "remaining": 15},
+            "casual_leave": {"total": 10, "used": 0, "remaining": 10},
+            "sick_leave": {"total": 10, "used": 0, "remaining": 10}
+        }
+        await db.leave_balances.insert_one(balance)
+    
+    # Calculate used leaves from approved requests
+    approved_leaves = await db.leave_requests.find({
+        "user_id": target_user_id,
+        "status": "Approved"
+    }, {"_id": 0}).to_list(1000)
+    
+    earned_used = 0
+    casual_used = 0
+    sick_used = 0
+    
+    for leave in approved_leaves:
+        try:
+            start = datetime.fromisoformat(leave['start_date'])
+            end = datetime.fromisoformat(leave['end_date'])
+            days = (end - start).days + 1
+            
+            if leave['leave_type'] in ['Earned Leave', 'Privilege Leave', 'EL', 'PL']:
+                earned_used += days
+            elif leave['leave_type'] in ['Casual Leave', 'CL']:
+                casual_used += days
+            elif leave['leave_type'] in ['Sick Leave', 'SL']:
+                sick_used += days
+        except:
+            pass
+    
+    return {
+        "user_id": target_user_id,
+        "earned_leave": {
+            "total": 15,
+            "used": earned_used,
+            "remaining": max(0, 15 - earned_used)
+        },
+        "casual_leave": {
+            "total": 10,
+            "used": casual_used,
+            "remaining": max(0, 10 - casual_used)
+        },
+        "sick_leave": {
+            "total": 10,
+            "used": sick_used,
+            "remaining": max(0, 10 - sick_used)
+        }
+    }
+
+# ==================== ATTENDANCE CSV UPLOAD ====================
+
+@api_router.post("/attendance/upload-csv")
+async def upload_attendance_csv(file: UploadFile = File(...), session_token: Optional[str] = Cookie(None)):
+    """Upload biometric attendance CSV (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can upload attendance CSV")
+    
+    if not file.filename.endswith('.csv'):
+        raise HTTPException(status_code=400, detail="Please upload a CSV file")
+    
+    contents = await file.read()
+    decoded = contents.decode('utf-8')
+    
+    # Parse CSV - Expected format: Emp ID, Date and Time, In Time, Out Time
+    reader = csv.DictReader(io.StringIO(decoded))
+    
+    imported_count = 0
+    errors = []
+    
+    # Get employee mapping
+    employees = await db.employees.find({}, {"_id": 0}).to_list(1000)
+    emp_map = {emp['employee_id']: emp for emp in employees}
+    
+    for row in reader:
+        try:
+            # Handle different column name variations
+            emp_id = row.get('Emp ID') or row.get('Emp id') or row.get('emp_id') or row.get('Employee ID') or ''
+            emp_id = emp_id.strip()
+            
+            date_str = row.get('Date and Time') or row.get('Date') or row.get('date') or ''
+            in_time = row.get('In Time') or row.get('in_time') or row.get('Check In') or ''
+            out_time = row.get('Out Time') or row.get('out_time') or row.get('Check Out') or ''
+            
+            if not emp_id or not date_str:
+                continue
+            
+            # Parse date - handle various formats
+            try:
+                if 'T' in date_str:
+                    date_obj = datetime.fromisoformat(date_str.split('T')[0])
+                elif ' ' in date_str:
+                    date_obj = datetime.strptime(date_str.split(' ')[0], '%Y-%m-%d')
+                else:
+                    date_obj = datetime.strptime(date_str, '%Y-%m-%d')
+                date_formatted = date_obj.strftime('%Y-%m-%d')
+            except:
+                try:
+                    date_obj = datetime.strptime(date_str, '%d-%m-%Y')
+                    date_formatted = date_obj.strftime('%Y-%m-%d')
+                except:
+                    errors.append(f"Invalid date format: {date_str}")
+                    continue
+            
+            # Find employee
+            employee = emp_map.get(emp_id)
+            target_user_id = employee.get('user_id', emp_id) if employee else emp_id
+            
+            # Parse times
+            check_in = None
+            check_out = None
+            
+            if in_time:
+                try:
+                    check_in = datetime.strptime(f"{date_formatted} {in_time.strip()}", '%Y-%m-%d %H:%M:%S').isoformat()
+                except:
+                    try:
+                        check_in = datetime.strptime(f"{date_formatted} {in_time.strip()}", '%Y-%m-%d %H:%M').isoformat()
+                    except:
+                        pass
+            
+            if out_time:
+                try:
+                    check_out = datetime.strptime(f"{date_formatted} {out_time.strip()}", '%Y-%m-%d %H:%M:%S').isoformat()
+                except:
+                    try:
+                        check_out = datetime.strptime(f"{date_formatted} {out_time.strip()}", '%Y-%m-%d %H:%M').isoformat()
+                    except:
+                        pass
+            
+            # Check if record exists
+            existing = await db.attendance.find_one({
+                "user_id": target_user_id,
+                "date": date_formatted
+            })
+            
+            if existing:
+                # Update existing record
+                await db.attendance.update_one(
+                    {"attendance_id": existing['attendance_id']},
+                    {"$set": {
+                        "check_in": check_in or existing.get('check_in'),
+                        "check_out": check_out or existing.get('check_out'),
+                        "status": "Present"
+                    }}
+                )
+            else:
+                # Create new record
+                attendance_doc = {
+                    "attendance_id": f"att_{uuid.uuid4().hex[:12]}",
+                    "user_id": target_user_id,
+                    "employee_id": emp_id,
+                    "date": date_formatted,
+                    "status": "Present",
+                    "check_in": check_in,
+                    "check_out": check_out,
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "source": "csv_upload"
+                }
+                await db.attendance.insert_one(attendance_doc)
+            
+            imported_count += 1
+            
+        except Exception as e:
+            errors.append(str(e))
+    
+    return {
+        "message": f"Imported {imported_count} attendance records",
+        "imported_count": imported_count,
+        "errors": errors[:10] if errors else []
+    }
+
+# ==================== KANBAN BOARD COLUMNS ====================
+
+@api_router.get("/kanban/columns")
+async def get_kanban_columns(session_token: Optional[str] = Cookie(None)):
+    """Get kanban board columns"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    columns = await db.kanban_columns.find({}, {"_id": 0}).sort([("order", 1)]).to_list(100)
+    
+    if not columns:
+        # Create default columns
+        default_columns = [
+            {"id": "backlog", "name": "Backlog", "order": 0},
+            {"id": "today", "name": "Today", "order": 1},
+            {"id": "in-progress", "name": "In Progress", "order": 2},
+            {"id": "review", "name": "Review", "order": 3},
+            {"id": "completed", "name": "Completed", "order": 4}
+        ]
+        for col in default_columns:
+            await db.kanban_columns.insert_one(col)
+        columns = default_columns
+    
+    return columns
+
+@api_router.post("/kanban/columns")
+async def create_kanban_column(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Create kanban column (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can create columns")
+    
+    column_doc = {
+        "id": data.get('id', f"col_{uuid.uuid4().hex[:8]}"),
+        "name": data['name'],
+        "order": data.get('order', 99)
+    }
+    
+    await db.kanban_columns.insert_one(column_doc)
+    return {"message": "Column created", "column": column_doc}
+
+@api_router.delete("/kanban/columns/{column_id}")
+async def delete_kanban_column(column_id: str, session_token: Optional[str] = Cookie(None)):
+    """Delete kanban column (Admin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'Admin':
+        raise HTTPException(status_code=403, detail="Only admins can delete columns")
+    
+    # Check column count
+    count = await db.kanban_columns.count_documents({})
+    if count <= 3:
+        raise HTTPException(status_code=400, detail="Cannot delete column. Minimum 3 columns required.")
+    
+    await db.kanban_columns.delete_one({"id": column_id})
+    return {"message": "Column deleted"}
+
+# ==================== ENHANCED LAB NOTEBOOK ====================
+
+@api_router.put("/lab-notebook/{entry_id}")
+async def update_notebook_entry(entry_id: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Update lab notebook entry with version tracking"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Get existing entry
+    entry = await db.lab_notebook.find_one({"entry_id": entry_id}, {"_id": 0})
+    if not entry:
+        raise HTTPException(status_code=404, detail="Entry not found")
+    
+    # Save version to history
+    current_version = entry.get('version', 1)
+    version_doc = {
+        "version_id": f"ver_{uuid.uuid4().hex[:12]}",
+        "entry_id": entry_id,
+        "version": current_version,
+        "title": entry.get('title'),
+        "content": entry.get('content'),
+        "tags": entry.get('tags'),
+        "modified_by": user.user_id,
+        "modified_by_name": user.name,
+        "modified_at": datetime.now(timezone.utc).isoformat(),
+        "change_summary": f"Updated by {user.name}"
+    }
+    await db.lab_notebook_versions.insert_one(version_doc)
+    
+    # Update entry
+    update_data = {
+        "title": data.get('title', entry['title']),
+        "content": data.get('content', entry['content']),
+        "tags": data.get('tags', entry.get('tags', [])),
+        "version": current_version + 1,
+        "last_modified_by": user.user_id,
+        "last_modified_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.lab_notebook.update_one(
+        {"entry_id": entry_id},
+        {"$set": update_data}
+    )
+    
+    return {"message": "Entry updated", "version": current_version + 1}
+
+@api_router.get("/lab-notebook/{entry_id}/history")
+async def get_notebook_history(entry_id: str, session_token: Optional[str] = Cookie(None)):
+    """Get version history for a lab notebook entry"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    versions = await db.lab_notebook_versions.find(
+        {"entry_id": entry_id},
+        {"_id": 0}
+    ).sort([("version", -1)]).to_list(100)
+    
+    return versions
+
 # Include router
 app.include_router(api_router)
 
