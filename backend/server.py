@@ -1932,7 +1932,9 @@ async def create_kanban_column(data: Dict[str, Any], session_token: Optional[str
     }
     
     await db.kanban_columns.insert_one(column_doc)
-    return {"message": "Column created", "column": column_doc}
+    # Remove MongoDB _id from response
+    response_column = {k: v for k, v in column_doc.items() if k != '_id'}
+    return {"message": "Column created", "column": response_column}
 
 @api_router.delete("/kanban/columns/{column_id}")
 async def delete_kanban_column(column_id: str, session_token: Optional[str] = Cookie(None)):
