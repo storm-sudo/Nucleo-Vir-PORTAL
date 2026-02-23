@@ -1004,11 +1004,16 @@ async def create_notebook_entry(data: Dict[str, Any], session_token: Optional[st
     entry_doc = {
         "entry_id": f"entry_{uuid.uuid4().hex[:12]}",
         "user_id": user.user_id,
+        "author_name": user.name,
         "date": datetime.now(timezone.utc).strftime("%Y-%m-%d"),
         "title": data['title'],
         "content": data['content'],
         "tags": data.get('tags', []),
-        "created_at": datetime.now(timezone.utc).isoformat()
+        "version": 1,
+        "collaborators": [user.user_id],
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        "last_modified_by": user.user_id,
+        "last_modified_at": datetime.now(timezone.utc).isoformat()
     }
     
     await db.lab_notebook.insert_one(entry_doc)
