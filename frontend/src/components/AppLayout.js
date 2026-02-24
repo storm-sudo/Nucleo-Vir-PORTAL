@@ -8,6 +8,7 @@ import {
   Clock, DollarSign, FolderKanban, BookOpen, Pen, Clipboard
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
+import { useTheme } from '@/contexts/ThemeContext';
 
 import { BACKEND_URL } from '@/config';
 
@@ -16,6 +17,7 @@ export default function AppLayout() {
   const location = useLocation();
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { theme } = useTheme();
 
   useEffect(() => {
     fetch(`${BACKEND_URL}/api/auth/me`, { credentials: 'include' })
@@ -65,20 +67,20 @@ export default function AppLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-[#163E64] dark:from-slate-950 dark:via-slate-900 dark:to-[#0f2942] transition-colors">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-900 transition-colors duration-300">
       {/* Header */}
-      <header className="bg-slate-800/80 dark:bg-slate-900/80 backdrop-blur-md border-b border-slate-700/50 sticky top-0 z-40 transition-colors">
+      <header className="bg-white dark:bg-slate-800 border-b border-gray-200 dark:border-slate-700 sticky top-0 z-40 transition-colors duration-300">
         <div className="px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-4">
-              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden text-slate-200">
+              <button onClick={() => setSidebarOpen(!sidebarOpen)} className="lg:hidden text-gray-700 dark:text-slate-200">
                 {sidebarOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
               </button>
               <div className="flex items-center space-x-3">
                 <img src="/logo.svg" alt="NucleoVir" className="h-9 w-9" />
                 <div>
-                  <h1 className="text-lg font-heading font-bold text-white">NucleoVir</h1>
-                  <p className="text-xs text-slate-400 hidden sm:block">Enterprise Portal</p>
+                  <h1 className="text-lg font-heading font-bold text-gray-900 dark:text-white">NucleoVir</h1>
+                  <p className="text-xs text-gray-500 dark:text-slate-400 hidden sm:block">Enterprise Portal</p>
                 </div>
               </div>
             </div>
@@ -86,8 +88,8 @@ export default function AppLayout() {
               <ThemeToggle />
               {user && (
                 <div className="text-sm text-right hidden sm:block">
-                  <div className="font-medium text-white">{user.name}</div>
-                  <div className="text-slate-400 text-xs">{user.role}</div>
+                  <div className="font-medium text-gray-900 dark:text-white">{user.name}</div>
+                  <div className="text-gray-500 dark:text-slate-400 text-xs">{user.role}</div>
                 </div>
               )}
               <Button 
@@ -95,7 +97,7 @@ export default function AppLayout() {
                 size="sm" 
                 onClick={handleLogout} 
                 data-testid="logout-btn" 
-                className="border-slate-600 text-slate-200 hover:bg-slate-700 hover:text-white"
+                className="border-gray-300 dark:border-slate-600 text-gray-700 dark:text-slate-200 hover:bg-gray-100 dark:hover:bg-slate-700"
               >
                 <LogOut className="h-4 w-4 mr-2" />
                 Logout
@@ -109,7 +111,7 @@ export default function AppLayout() {
         {/* Sidebar */}
         <aside className={`${
           sidebarOpen ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-30 w-64 bg-slate-800/90 dark:bg-slate-900/90 backdrop-blur-md border-r border-slate-700/50 transition-transform duration-300 ease-in-out overflow-y-auto`}>
+        } lg:translate-x-0 fixed lg:static inset-y-0 left-0 z-30 w-64 bg-white dark:bg-slate-800 border-r border-gray-200 dark:border-slate-700 transition-all duration-300 ease-in-out overflow-y-auto`}>
           <nav className="p-4 space-y-1 mt-16 lg:mt-0">
             {filteredMenuItems.map((item) => {
               const Icon = item.icon;
@@ -122,8 +124,8 @@ export default function AppLayout() {
                   onClick={() => setSidebarOpen(false)}
                   className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
                     active
-                      ? 'bg-gradient-to-r from-[#FF3D33]/20 to-[#215F9A]/20 text-white font-medium border-l-2 border-[#FF3D33]'
-                      : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                      ? 'bg-gradient-to-r from-[#FF3D33]/10 to-[#215F9A]/10 dark:from-[#FF3D33]/20 dark:to-[#215F9A]/20 text-[#215F9A] dark:text-white font-medium border-l-2 border-[#FF3D33]'
+                      : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700/50 hover:text-gray-900 dark:hover:text-white'
                   }`}
                 >
                   <Icon className={`h-5 w-5 ${active ? 'text-[#FF3D33]' : ''}`} />
@@ -132,8 +134,7 @@ export default function AppLayout() {
               );
             })}
             
-            {/* Divider and secondary menu */}
-            <div className="pt-4 mt-4 border-t border-slate-700/50">
+            <div className="pt-4 mt-4 border-t border-gray-200 dark:border-slate-700">
               {secondaryMenuItems.map((item) => {
                 const Icon = item.icon;
                 const active = isActive(item.path, item.exact);
@@ -145,8 +146,8 @@ export default function AppLayout() {
                     onClick={() => setSidebarOpen(false)}
                     className={`flex items-center space-x-3 px-3 py-2.5 rounded-lg transition-all duration-200 ${
                       active
-                        ? 'bg-gradient-to-r from-[#FF3D33]/20 to-[#215F9A]/20 text-white font-medium border-l-2 border-[#FF3D33]'
-                        : 'text-slate-300 hover:bg-slate-700/50 hover:text-white'
+                        ? 'bg-gradient-to-r from-[#FF3D33]/10 to-[#215F9A]/10 dark:from-[#FF3D33]/20 dark:to-[#215F9A]/20 text-[#215F9A] dark:text-white font-medium border-l-2 border-[#FF3D33]'
+                        : 'text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700/50 hover:text-gray-900 dark:hover:text-white'
                     }`}
                   >
                     <Icon className={`h-5 w-5 ${active ? 'text-[#FF3D33]' : ''}`} />
@@ -167,7 +168,7 @@ export default function AppLayout() {
       {/* Overlay */}
       {sidebarOpen && (
         <div 
-          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-20 lg:hidden"
+          className="fixed inset-0 bg-black/50 z-20 lg:hidden"
           onClick={() => setSidebarOpen(false)}
         />
       )}
