@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { toast } from 'sonner';
-import { LogIn, Eye, EyeOff, Dna } from 'lucide-react';
+import { LogIn, Eye, EyeOff } from 'lucide-react';
 
 import { BACKEND_URL } from '@/config';
 
@@ -43,24 +43,22 @@ export default function Landing() {
   };
 
   return (
-    <div className="min-h-screen bg-zinc-900 flex flex-col">
+    <div className="min-h-screen bg-gradient-to-br from-slate-900 via-slate-800 to-[#163E64] flex flex-col">
       {/* Header */}
-      <header className="border-b border-zinc-800">
+      <header className="border-b border-slate-700/50">
         <div className="max-w-7xl mx-auto px-6 py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center space-x-3">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-lg flex items-center justify-center">
-                <Dna className="h-6 w-6 text-white" />
-              </div>
+              <img src="/logo.svg" alt="NucleoVir" className="h-12 w-12" />
               <div>
                 <h1 className="text-xl font-bold text-white tracking-tight">NucleoVir</h1>
-                <p className="text-xs text-zinc-500">Therapeutics</p>
+                <p className="text-xs text-slate-400">Therapeutics</p>
               </div>
             </div>
             <Button 
               onClick={() => setShowLoginModal(true)}
               data-testid="request-access-btn"
-              className="bg-emerald-600 hover:bg-emerald-700 text-white"
+              className="bg-gradient-to-r from-[#FF3D33] to-[#215F9A] hover:from-[#e63529] hover:to-[#1a4d7a] text-white border-0"
             >
               <LogIn className="h-4 w-4 mr-2" />
               Employee Login
@@ -73,16 +71,14 @@ export default function Landing() {
       <main className="flex-1 flex items-center justify-center px-6">
         <div className="text-center max-w-2xl">
           <div className="mb-8">
-            <div className="inline-flex items-center justify-center w-20 h-20 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-2xl mb-6">
-              <Dna className="h-10 w-10 text-white" />
-            </div>
+            <img src="/logo.svg" alt="NucleoVir" className="h-32 w-32 mx-auto mb-6" />
             <h2 className="text-4xl md:text-5xl font-bold text-white mb-4 tracking-tight">
               NucleoVir Therapeutics
             </h2>
-            <p className="text-xl text-zinc-400 mb-2">
+            <p className="text-xl text-slate-300 mb-2">
               Enterprise Portal
             </p>
-            <p className="text-zinc-500">
+            <p className="text-slate-400">
               Building full-stack Immunotherapies with AI-Powered Precision
             </p>
           </div>
@@ -90,7 +86,7 @@ export default function Landing() {
           <Button 
             size="lg"
             onClick={() => setShowLoginModal(true)}
-            className="bg-emerald-600 hover:bg-emerald-700 text-white px-8 py-6 text-lg"
+            className="bg-gradient-to-r from-[#FF3D33] to-[#215F9A] hover:from-[#e63529] hover:to-[#1a4d7a] text-white px-8 py-6 text-lg border-0 shadow-lg shadow-[#215F9A]/20"
           >
             <LogIn className="h-5 w-5 mr-2" />
             Access Portal
@@ -99,9 +95,9 @@ export default function Landing() {
       </main>
 
       {/* Footer */}
-      <footer className="border-t border-zinc-800 py-6">
+      <footer className="border-t border-slate-700/50 py-6">
         <div className="max-w-7xl mx-auto px-6 text-center">
-          <p className="text-zinc-500 text-sm">
+          <p className="text-slate-400 text-sm">
             © {new Date().getFullYear()} NucleoVir Therapeutics Pvt. Ltd. All rights reserved.
           </p>
         </div>
@@ -110,22 +106,20 @@ export default function Landing() {
       {/* Login Modal */}
       {showLoginModal && (
         <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <Card className="w-full max-w-md bg-zinc-800 border-zinc-700">
+          <Card className="w-full max-w-md bg-slate-800 border-slate-700">
             <CardHeader className="text-center pb-2">
               <div className="flex justify-center mb-4">
-                <div className="w-12 h-12 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center">
-                  <Dna className="h-6 w-6 text-white" />
-                </div>
+                <img src="/logo.svg" alt="NucleoVir" className="h-16 w-16" />
               </div>
               <CardTitle className="text-xl text-white">Welcome Back</CardTitle>
-              <CardDescription className="text-zinc-400">
+              <CardDescription className="text-slate-400">
                 Sign in to NucleoVir Enterprise Portal
               </CardDescription>
             </CardHeader>
             <CardContent>
               <form onSubmit={handleLogin} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
                     Email Address
                   </label>
                   <Input
@@ -135,11 +129,11 @@ export default function Landing() {
                     onChange={(e) => setLoginData({...loginData, email: e.target.value})}
                     placeholder="you@nucleovir.com"
                     required
-                    className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-emerald-500 focus:ring-emerald-500"
+                    className="bg-slate-900 border-slate-600 text-white placeholder:text-slate-500 focus:border-[#215F9A] focus:ring-[#215F9A]"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-zinc-300 mb-1.5">
+                  <label className="block text-sm font-medium text-slate-300 mb-1.5">
                     Password
                   </label>
                   <div className="relative">
@@ -150,12 +144,12 @@ export default function Landing() {
                       onChange={(e) => setLoginData({...loginData, password: e.target.value})}
                       placeholder="Enter your password"
                       required
-                      className="bg-zinc-900 border-zinc-700 text-white placeholder:text-zinc-500 focus:border-emerald-500 focus:ring-emerald-500 pr-10"
+                      className="bg-slate-900 border-slate-600 text-white placeholder:text-slate-500 focus:border-[#215F9A] focus:ring-[#215F9A] pr-10"
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-300"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-300"
                     >
                       {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                     </button>
@@ -164,7 +158,7 @@ export default function Landing() {
                 <Button 
                   type="submit" 
                   data-testid="login-submit"
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white py-5"
+                  className="w-full bg-gradient-to-r from-[#FF3D33] to-[#215F9A] hover:from-[#e63529] hover:to-[#1a4d7a] text-white py-5 border-0"
                   disabled={isLoading}
                 >
                   {isLoading ? 'Signing in...' : 'Sign In'}
@@ -174,7 +168,7 @@ export default function Landing() {
                 <button
                   type="button"
                   onClick={() => setShowLoginModal(false)}
-                  className="text-sm text-zinc-400 hover:text-zinc-300"
+                  className="text-sm text-slate-400 hover:text-slate-300"
                 >
                   Cancel
                 </button>
