@@ -2024,6 +2024,14 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Import and include procurement router
+try:
+    from procurement import procurement_router
+    app.include_router(procurement_router)
+    logger.info("Procurement module loaded successfully")
+except ImportError as e:
+    logger.warning(f"Procurement module not loaded: {e}")
+
 @app.on_event("shutdown")
 async def shutdown_db_client():
     client.close()

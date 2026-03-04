@@ -119,7 +119,7 @@ A comprehensive, responsive enterprise application for Nucleo-vir Therapeutics -
 - ✅ All CRUD operations functional
 
 ## Deployment
-- **Preview**: https://edit-central-3.preview.emergentagent.com ✅ Working
+- **Preview**: https://p2p-automation.preview.emergentagent.com ✅ Working
 - **Production**: https://biotech-portal-3.emergent.host (needs redeployment to pick up config changes)
 
 ## Future Enhancements (Backlog)
@@ -142,7 +142,7 @@ SENDER_EMAIL=onboarding@resend.dev
 
 ### Frontend (.env)
 ```
-REACT_APP_BACKEND_URL=https://edit-central-3.preview.emergentagent.com
+REACT_APP_BACKEND_URL=https://p2p-automation.preview.emergentagent.com
 WDS_SOCKET_PORT=443
 ```
 

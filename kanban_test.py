@@ -6,7 +6,7 @@ Quick test for Kanban API fix
 import requests
 import json
 
-BASE_URL = "https://edit-central-3.preview.emergentagent.com/api"
+BASE_URL = "https://p2p-automation.preview.emergentagent.com/api"
 TEST_EMAIL = "shahebaz.kazi@nucleovir.com"
 TEST_PASSWORD = "JgCMqw5uUWvF"
 

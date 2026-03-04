@@ -1,216 +1,187 @@
-<analysis>Here is a handover summary of the current state of the project.
+<analysis>An analysis of the user's request and the agent's progress is provided below.
 
 **original_problem_statement:**
-The user wants to build a comprehensive, responsive enterprise application for Nucleo-vir Therapeutics.
+The user wants to implement a comprehensive Procurement to Payment automation system as a Phase 1 MVP. The request is highly detailed and serves as a full Product Requirements Document (PRD).
 
-**PRODUCT REQUIREMENTS:**
-- **Core Landing Page:** Hero, About, Services, and Contact Form.
-- **Authentication & Access Control:** Role-based access (Admin, HR, Employee, Accountant, CA) with Google OAuth, restricted to  emails.
-- **HR & CRM System:**
-    - **Employee Management:** Add employees, generate offer letters/IDs, manage profiles.
-    - **Attendance & Leave:** Track attendance, manage leave requests, visualize data.
-    - **Payroll & Compensation:** Manage salary, generate payslips.
-    - **Helpdesk & CRM:** Internal ticketing and customer management.
-- **Custom Workflows:**
-    - **Payment Workflow:** CA uploads payment requests, triggering email notifications.
-    - **Project Management:** Trello-style board.
-    - **Lab Modules:** Lab Notebook, Lab Inventory, Equipment Scheduling.
-    - **Communication:** Group-based Chat and a Calendar module for scheduling.
-- **Admin-Specific Features:**
-    - Downloadable attendance reports (CSV).
-    - Stationary inventory management.
-    - Kanban-style work assignment board.
-- **General:** Implement full CRUD (Create, Read, Update, Delete) functionality for all relevant modules, with confirmation modals for destructive actions.
+**PRODUCT REQUIREMENTS (MVP):**
+- **Roles & Permissions:**
+    - **CA (Chartered Accountant):**  (sole user with CA functions).
+    - **Directors:** , ,  (for approvals).
+- **Core Features:**
+    - **Quotation Management:** Upload quotations with OCR data extraction (Tesseract as fallback), manual confirmation for low-confidence OCR, and a quotation tracker.
+    - **Approval Engine:** A multi-level approval workflow based on monetary thresholds, with Director-first priority.
+        - : Single Director approval.
+        - : Single Director approval, requires 3 quotations.
+        - : All three Directors must approve.
+        - : Requires Board a resolution upload.
+    - **Purchase Orders (PO):** Generate POs from approved quotations, with PDF export.
+    - **Goods Received Note (GRN):** Create GRNs with QC and asset tagging capabilities.
+    - **Vouchers:** Auto-create vouchers upon receiving an invoice and a matching GRN.
+    - **Reporting:** Exportable reports (PO register, payment register, vendor aging, GST/TDS) in CSV/XLSX/PDF.
+    - **Audit & Archive:** Full audit trail for all actions and a 7-year data retention policy (no hard deletes).
+- **Notifications:** In-app notifications only (no SMTP/email).
+- **Storage:** A specific folder structure under  for storing all related documents.
+- **UI:** Dedicated UIs for the CA (dashboard, upload forms, trackers) and Directors (pending approvals queue, approval modal).
+- **Constraint:** All backend and frontend changes must be delivered in a single deployment/restart to conserve user credits.
 
 **User's preferred language**: English
 
 **what currently exists?**
-A substantial full-stack application has been developed, implementing the majority of the features requested in the problem statement. This includes a functional frontend built with React and a backend with FastAPI and MongoDB. Key modules developed are:
-- User authentication with role-based access control.
-- A dashboard with a notification system.
-- Modules for Employees, Attendance (with stats), Leave, Payroll, Payment Requests, Projects, Lab Notebook, Lab Inventory, Equipment Scheduling, Chat, Calendar, Stationary Inventory, and Work Assignments.
-- Full CRUD functionality has been added iteratively to most modules.
-- Several bugs identified by the user have been fixed, including UI component issues and missing functionality.
+The project is a large, functional enterprise portal for Nucleo-vir Therapeutics. Previous work established a robust foundation with email/password authentication, role-based access, and numerous modules, including a themed Dashboard, an Attendance module with CSV import, a Kanban-style Work Assignment board, and a rich-text Lab Notebook. The entire application, including a redesigned landing page, has been themed with a new logo and a red-to-blue gradient color scheme, supporting both light and dark modes. The agent has just begun the Procurement to Payment module by creating the initial backend router (), the main file storage directory (), and a placeholder frontend component ().
 
 **Last working item**:
-- **Last item agent was working:** Implementing member selection for chat group creation. The user requested that admins be able to choose which employees to add to a new chat group. The agent rewrote the  component to add a multi-select dropdown for users when an admin creates a group.
-- **Status:** IN PROGRESS
-- **Agent Testing Done:** N
-- **Which testing method agent to use?** both
-- **User Testing Done:** N
+    - Last item agent was working: The agent started implementing the new Procurement to Payment module. It created the initial backend router (), the main storage directory (), and a placeholder frontend component (). The immediate goal was to begin building the UI for the Chartered Accountant (CA) role.
+    - Status: IN PROGRESS
+    - Agent Testing Done: N
+    - Which testing method agent to use? both
+    - User Testing Done: N
 
 **All Pending/In progress Issue list**:
-- **Issue 1:** Chat Group Member Selection is Untested (P0)
-- **Issue 2:** Potential Incomplete CRUD for Lab Modules (P2)
-- **Issue 3:** Select/Dropdown Error in Attendance Tab (P0 - Recently Fixed, Verification Needed)
+There are no outstanding bugs or issues. The primary pending item is the new feature development.
 
-**Issues Detail:**
-- **Issue 1: Chat Group Member Selection is Untested**
-    - **Description:** The agent overwrote  to add functionality for admins to select members when creating a group. However, this new implementation was never tested before the user requested a deployment health check. It's unknown if it functions correctly or if it requires corresponding backend changes.
-    - **Next debug checklist:**
-        1.  Log in as an Admin.
-        2.  Navigate to the Chat page.
-        3.  Click Create Group and verify a member selection UI appears.
-        4.  Attempt to create a group with selected members.
-        5.  Check the browser's developer console and network tab for errors during creation.
-        6.  Verify that the group is created and only the selected members are part of it.
-    - **Why fix this issue and what will be achieved with the fix?** This is a direct user request to complete the group management feature. Fixing it will allow admins to control access to chat groups.
-    - **Status:** IN PROGRESS
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Both
-    - **Blocked on other issue:** None
-
-- **Issue 2: Potential Incomplete CRUD for Lab Modules**
-    - **Description:** In a previous session (Message 113), the agent encountered a tool error () while attempting to add Edit/Delete functionality to  and . The agent restarted services and moved on, but it's unclear if these changes were ever successfully applied.
-    - **Next debug checklist:**
-        1.  Review the code for  and .
-        2.  Check if Edit and Delete buttons/functionality exist for notebook entries and inventory items.
-        3.  If missing, implement the CRUD operations as originally intended.
-    - **Why fix this issue and what will be achieved with the fix?** To ensure all modules have the consistent CRUD functionality requested by the user.
-    - **Status:** NOT STARTED
-    - **Is recurring issue?** N
-    - **Should Test frontend/backend/both after fix?** Both
-    - **Blocked on other issue:** None
-
-- **Issue 3: Select/Dropdown Error in Attendance Tab**
-    - **Description:** The user reported an error . The agent fixed this by changing an empty  to  in  and adjusting the logic.
-    - **Attempted fixes:** The agent modified the component to use self as the value and updated the surrounding logic.
-    - **Why fix this issue and what will be achieved with the fix?** The fix was intended to resolve a frontend crash on the Attendance page. The fix needs verification.
-    - **Status:** USER VERIFICATION PENDING
-    - **Is recurring issue?** Y (This was the second bug fix for the Attendance tab).
-    - **Should Test frontend/backend/both after fix?** Frontend
-    - **Blocked on other issue:** None
+  Issues Detail:
+  - N/A
 
 **In progress Task List**:
-- **Task 1: Run Deployment Health Check (P0)**
-    - **Description:** The user's last instruction was Call Deployer Agent and Run Health Check to Check for Readiness for Deployment. This should be the next immediate action.
-    - **Where to resume:** Call the  tool.
-    - **What will be achieved with this?** It will assess the application's readiness for deployment and identify any critical issues.
-    - **Status:** NOT STARTED
-    - **Should Test frontend/backend/both after fix?** N/A
-    - **Blocked on something:** None
+  - Task 1:  (P0) Implement the Procurement to Payment Automation System (MVP)
+  
+ Task Detail:
+  - Task 1: 
+     - Where to resume: The agent should continue building the frontend, starting with fleshing out the  component. It then needs to create all other UI components specified in the PRD (Quotation Upload, Tracker, Approval Modals, etc.) and integrate them with the backend APIs.
+     - What will be achieved with this? This will deliver the complete MVP of the procurement system, enabling automated workflows from quotation to payment, as requested by the user.
+     - Status:  IN PROGRESS
+     - Should Test frontend/backend/both after fix? both
+     - Blocked on something: None.
 
 **Upcoming and Future Tasks**
-- **Upcoming Tasks:**
-    - **(P1) Implement remaining backend logic for new chat member selection:** The backend endpoints for adding members to a group () might need to be integrated into the group creation flow if the new frontend requires it.
-- **Future Tasks:**
-    - **(P2) ID Card Generation:** Implement ID card generation with a barcode/QR code for employees.
-    - **(P2) PDF Payslip Generation:** Implement PDF generation for payroll records.
-    - **(P3) Google Drive Integration:** Implement document sync with Google Drive for backups.
-    - **(P3) Calendar Reminders:** Add automated email/in-app reminders for calendar events.
-    - **(P3) Attendance Heatmap:** Create a GitHub-style heatmap visualization for the attendance dashboard.
+Upcoming Tasks:
+- **(P0) Backend Implementation (in ):**
+    - Implement OCR logic for parsing uploaded quotation PDFs.
+    - Implement PDF generation for Purchase Orders.
+    - Build the approval engine logic, including threshold checks, the 3-quote rule, and status transitions.
+    - Create the report generation endpoint for exporting data in various formats.
+    - Implement the  creation for all state changes.
+    - Develop the in-app notification system.
+- **(P0) Frontend Implementation (in ):**
+    - Add a Procurement tab/link to the main navigation in .
+    - Build the  with all required functionality (upload, tracking, PO conversion).
+    - Create the quotation upload form with OCR preview and a manual confirmation step.
+    - Develop the Pending Approvals list and approval modal for Directors.
+    - Implement a notifications center UI to display in-app alerts.
+    - Create views for the audit trail and report generation.
+    - Enforce role-based routing to restrict access to the CA and Director pages.
+Future Tasks:
+- No future tasks have been defined beyond the current MVP request.
 
 **Completed work in this session**
-- **Feature:** Implemented a notifications system and announcements on the Dashboard.
-- **Feature:** Overhauled the Attendance page with search, statistics, and role-based views.
-- **Feature:** Added admin-only features: CSV export for attendance, a Stationary Inventory module, and a Work Assignments Kanban board.
-- **Feature:** Added Create Payroll and New Request buttons to their respective modules.
-- **Feature:** Added Intern as a selectable role in the Employee module.
-- **Bug Fix:** Resolved a crash on the Attendance page caused by a missing  component.
-- **Bug Fix:** Fixed a second crash on the Attendance page related to an empty value in a  component.
-- **Feature:** Added a delete button for inventory requests in the Lab Inventory module.
-- **Feature:** Added an About/Guide page.
-- **Feature:** Implemented initial backend and frontend for most modules (Projects, Lab Notebook, Calendar, etc.).
+- **Feature Implementation:**
+  - **Dashboard Quick Actions:** Made buttons functional and customizable.
+  - **Light/Dark Mode:** Added a persistent theme toggle.
+  - **Attendance Module:** Implemented CSV upload and leave balance display.
+  - **Work Assignments:** Converted into a full-featured Kanban board ().
+  - **Lab Notebook:** Upgraded to a rich-text editor with version history ().
+- **User Management:**
+  - Fixed the email/password login flow.
+  - Created and ran a script () to bulk-add 15 users with secure temporary passwords.
+- **UI/UX Overhaul:**
+  - Redesigned the landing page for a clean, professional look.
+  - Integrated a new company logo and applied a consistent red-to-blue gradient theme across the entire application.
+  - Corrected inconsistencies in the light/dark mode implementation.
+- **Backend Development:**
+  - Added and tested all API endpoints required for the above features in .
 
 **Earlier issues found/mentioned but not fixed**
-- **Issue 1: Incomplete Lab Module CRUD**
-    - **Debug checklist:** As mentioned in All Pending/In progress Issue list.
-    - **Why to solve this issue and what will be achieved with this?** To fulfill the user's requirement for consistent CRUD operations across all modules.
-    - **Should Test frontend/backend/both after fix:** Both
-    - **Is recurring issue?** N
+   - None.
 
 **Known issue recurrence from previous fork**
-- None.
+  - N/A
 
 **Code Architecture**
 
 
 **Key Technical Concepts**
-- **Backend:** FastAPI, Pydantic for data modeling, MongoDB with  driver.
-- **Frontend:** React,  for routing, TailwindCSS for styling, Shadcn UI components.
-- **Authentication:** Custom session-based authentication managed by the backend, with frontend routing guards. User data is fetched from an external OAuth provider endpoint.
-- **Architecture:** Single Page Application (SPA) with a RESTful API backend.
+- **Frontend:** React, TailwindCSS, Shadcn UI, , 
+- **Backend:** FastAPI, MongoDB (), 
+- **Authentication:** JWT-based sessions via cookies.
+- **File Storage:** Local filesystem storage under .
+- **Infrastructure:** Services are managed by backend                          RUNNING   pid 48, uptime 0:00:06
+code-server                      STOPPED   Not started
+frontend                         STOPPED   Mar 04 10:48 AM
+mongodb                          RUNNING   pid 50, uptime 0:00:06
+nginx-code-proxy                 RUNNING   pid 47, uptime 0:00:06
+supervisor> .
 
 **key DB schema**
-- **users:** (Implicitly managed via OAuth) 
-- **employees:** 
-- **attendance:** 
-- **leave_requests:** 
-- **payroll:** 
-- **payment_requests:** 
-- **projects:** 
-- **tasks:** 
-- **lab_notebook_entries:** 
-- **inventory_items:** 
-- **inventory_requests:** 
-- **stationary_inventory:** 
-- **announcements:** 
-- **chat_groups:** 
-- **chat_messages:** 
+  - : { email, name, role, password_hash, must_change_password, quick_actions_prefs, theme_preference }
+  - : { employee_id, date, in_time, out_time }
+  - , : For the work assignment board.
+  - : For the rich-text notebook.
+  - **To Be Created:** , , , , , , , .
 
 **changes in tech stack**
-- None. The stack has remained FastAPI, React, and MongoDB.
+  - No fundamental changes to the stack.
 
 **All files of reference**
-- : The entire backend logic resides here, including all API routes, database models (Pydantic), and business logic.
-- : Contains the main React Router setup, defining all application routes.
-- : Defines the main application layout, including the sidebar navigation.
-- : This directory contains a separate component for each major feature/module of the application.
-- : This file was just overwritten and is completely untested.
-- : This file has been heavily modified to add stats and search and has been the source of two recent bugs.
+- **New Files Created:**
+  - : For all new procurement business logic.
+  - : Placeholder for the CA's main interface.
+  - : Root directory for storing financial documents.
+  - : One-time script to populate users.
+  - : The new company logo.
+- **Key Files Updated:**
+  - : To incorporate the new procurement router.
+  - All major frontend components (, , , etc.) were updated for the new theme and features.
 
 **Areas that need refactoring**:
-- The  file has grown to over 1500 lines and contains all models and routes. It should be broken down into a more modular structure with separate files for routes (routers) and models to improve maintainability.
+- The current approach of adding a dedicated router () for the new module is a good design choice and avoids bloating . No immediate refactoring is needed.
 
 **key api endpoints**
-- : Get current user info.
-- : CRUD for employees.
-- , , : Endpoints for managing and reporting attendance.
-- : CRUD for work assignment tasks.
-- : CRUD for stationary items.
-- , : For the dashboard notification system.
-- , : For the chat module.
-- (Plus CRUD endpoints for all other modules like projects, payroll, payments, etc.)
+- **New Endpoints to be fully implemented in :**
+  - 
+  - 
+  - 
+  - 
+  - 
+  - 
 
 **Critical Info for New Agent**
-- The user's last command was to call the deployment agent for a health check. This should be your first action.
-- The most recent code change was a complete rewrite of  to add member selection to group creation. This feature is entirely untested and may have bugs or require backend adjustments. Be prepared to debug this feature after running the health check.
-- The Attendance page has been a recent source of bugs. While the latest fix has been applied, it requires user verification and might still have issues.
+- **Single Deploy Constraint:** The user is extremely sensitive to cost and has mandated that the entire procurement module (backend and frontend) be delivered in a single operation (one restart). Avoid iterative changes and restarts.
+- **Adhere to PRD:** The user's request for the procurement module is very detailed. Follow the specified roles, approval workflows, storage paths, and acceptance criteria precisely.
+- **Server-Side Enforcement:** All role-based restrictions (e.g., CA functions for ) must be enforced on the backend, not just the UI.
+- **In-App Notifications Only:** Do not implement any email (SMTP) functionality for notifications.
 
 **documents and test reports created in this job**
-- 
-- 
+  - 
 
-**Last 10 User Messages and any pending HUMAN messages**
-1.  **User:** Call Deployer Agent and Run Health Check. (PENDING - This is the next action)
-2.  **User:** Explain how I can add members to a chat group I create. (Agent started implementing this)
-3.  **User:** The  component is crashing the app. (Agent fixed this)
-4.  **User:** The attendance tab is not working. (Agent fixed this)
-5.  **User:** Add a notifications box and enhance the attendance tab with search and stats. (Agent implemented this)
-6.  **User:** The Payroll and Payment tabs are missing Create buttons, and I need an Intern role. (Agent implemented this)
-7.  **User:** Add a delete button for inventory requests and explain how Payroll/Payment tabs work. (Agent implemented this)
-8.  **User:** Add admin features: attendance export, stationary inventory, and a work assignment board. (Agent implemented this)
-9.  **User:** Enhance the portal with full CRUD, delete confirmations, and an About/Guide tab. (Agent implemented this)
-10. **User:** What is the code server login password? (Agent called support agent to answer)
+**Last 10 User Messages and any pending HUMAN messages** 
+ -  1. **User Request:** A detailed PRD for a Procurement to Payment system, requesting implementation in a single deploy. **Status: IN PROGRESS**
+ -  2. **User Feedback:** Complained about poor styling in light/dark themes. **Status: COMPLETED**
+ -  3. **User Request:** Asked to improve the look and feel of all inner application tabs. **Status: COMPLETED**
+ -  4. **User Request:** Provided a new logo and asked to update the theme accordingly. **Status: COMPLETED**
+ -  5. **User Request:** Requested a cleanup of the landing page to be more professional. **Status: COMPLETED**
+ -  6. **User Request:** Requested to disable Google OAuth and bulk-create a list of specified users via a script. **Status: COMPLETED**
+ -  7. **User Request:** Provided clarifications on login testing, CSV format, leave balances, Kanban columns, and rich editor choice. **Status: COMPLETED**
+ -  8. **User Request:** A large, multi-part request to implement functional Quick Actions, a light/dark mode toggle, an attendance module with CSV upload, a Kanban board, and an enhanced lab notebook. **Status: COMPLETED**
 
 **Project Health Check:**
-- **Broken:** The  page functionality is unknown and likely broken as it's completely untested after a full rewrite.
-- **Mocked:** The initial authentication flow relies on an external endpoint  to provide mock user data.
+- **Broken:** None.
+- **Mocked:** None.
 
 **3rd Party Integrations**
-- **Emergent-managed Google Auth:** Used for authentication.
-- **Resend:** Configured for sending emails (planned for contact forms, onboarding, notifications).
-- **Google Drive:** Planned for document storage but not yet implemented.
+- **Google OAuth:** Integrated, but currently disabled by user request.
+- **Tesseract (Planned):** Will be used as a fallback for OCR if no cloud OCR keys are provided by the user. Not yet implemented.
 
 **Testing status**
-- **Testing agent used after significant changes:** NO. The agent relied on  and manual  commands for most incremental updates. A testing agent was called early on, but no results were processed.
-- **Troubleshoot agent used after agent stuck in loop:** NO
-- **Test files created:** None.
-- **Known regressions:** The Attendance tab has had two recent bugs, indicating it might be fragile.
+  - Testing agent used after significant changes: NO
+  - Troubleshoot agent used after agent stuck in loop: NO
+  - Test files created: []
+  - Known regressions: []
 
 **Credentials to test flow:**
-- No explicit credentials are required for testing. The application uses a mocked authentication endpoint that provides user data, including roles like 'Admin' or 'Employee', which can be used to test role-based access control.
+User accounts were created with temporary passwords. The key roles for the current task are:
+- **CA (Chartered Accountant):** 
+- **Directors:** , , 
+(Passwords were provided in the chat history).
 
 **What agent forgot to execute**
-- The agent did not test the newly written  file after the user requested a change.
-- The agent may have forgotten to complete the CRUD implementation for the Lab Notebook and Lab Inventory modules after encountering a tool error.</analysis>
+The agent is currently on track with the user's latest and very large request. It has correctly started by setting up the foundational files for the new module. Nothing has been forgotten at this stage.</analysis>

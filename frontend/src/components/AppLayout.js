@@ -5,10 +5,20 @@ import { Button } from '@/components/ui/button';
 import { 
   LayoutDashboard, Users, Calendar, FileText, Package, 
   Microscope, MessageSquare, ClipboardList, LogOut, Menu, X,
-  Clock, DollarSign, FolderKanban, BookOpen, Pen, Clipboard
+  Clock, DollarSign, FolderKanban, BookOpen, Pen, Clipboard,
+  ShoppingCart, Bell, Check
 } from 'lucide-react';
 import ThemeToggle from '@/components/ThemeToggle';
 import { useTheme } from '@/contexts/ThemeContext';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 
 import { BACKEND_URL } from '@/config';
 
@@ -17,6 +27,8 @@ export default function AppLayout() {
   const location = useLocation();
   const [user, setUser] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
   const { theme } = useTheme();
 
   useEffect(() => {
@@ -25,6 +37,46 @@ export default function AppLayout() {
       .then(data => setUser(data))
       .catch(() => navigate('/'));
   }, [navigate]);
+
+  // Fetch procurement notifications periodically
+  useEffect(() => {
+    const fetchNotifications = async () => {
+      try {
+        const response = await fetch(`${BACKEND_URL}/api/notifications?unread_only=true`, { credentials: 'include' });
+        if (response.ok) {
+          const data = await response.json();
+          setNotifications(data);
+        }
+      } catch (error) {
+        console.error('Failed to fetch notifications');
+      }
+    };
+    
+    fetchNotifications();
+    const interval = setInterval(fetchNotifications, 30000); // Refresh every 30s
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleMarkNotificationRead = async (notificationId) => {
+    try {
+      await fetch(`${BACKEND_URL}/api/notifications/${notificationId}/read`, {
+        method: 'POST',
+        credentials: 'include'
+      });
+      setNotifications(prev => prev.filter(n => n.notification_id !== notificationId));
+    } catch (error) {
+      console.error('Failed to mark notification read');
+    }
+  };
+
+  const handleNotificationClick = (notification) => {
+    // Navigate to relevant entity
+    if (notification.related_entity?.type === 'po') {
+      navigate('/app/procurement');
+    }
+    handleMarkNotificationRead(notification.notification_id);
+    setNotifDropdownOpen(false);
+  };
 
   const handleLogout = async () => {
     await fetch(`${BACKEND_URL}/api/auth/logout`, {
@@ -37,6 +89,7 @@ export default function AppLayout() {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/app', exact: true },
     { icon: Clipboard, label: 'Work Assignments', path: '/app/work-assignments' },
+    { icon: ShoppingCart, label: 'Procurement', path: '/app/procurement' },
     { icon: Users, label: 'Employees', path: '/app/employees', roles: ['Admin', 'HR'] },
     { icon: Clock, label: 'Attendance', path: '/app/attendance' },
     { icon: FileText, label: 'Leave Requests', path: '/app/leave-requests' },
@@ -85,6 +138,59 @@ export default function AppLayout() {
               </div>
             </div>
             <div className="flex items-center space-x-4">
+              {/* Notification Bell */}
+              <DropdownMenu open={notifDropdownOpen} onOpenChange={setNotifDropdownOpen}>
+                <DropdownMenuTrigger asChild>
+                  <button 
+                    className="relative p-2 rounded-lg text-gray-600 dark:text-slate-300 hover:bg-gray-100 dark:hover:bg-slate-700 transition-colors"
+                    data-testid="notification-bell"
+                  >
+                    <Bell className="h-5 w-5" />
+                    {notifications.length > 0 && (
+                      <span className="absolute -top-1 -right-1 h-5 w-5 flex items-center justify-center text-xs font-bold text-white bg-red-500 rounded-full">
+                        {notifications.length > 9 ? '9+' : notifications.length}
+                      </span>
+                    )}
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-80 bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+                  <DropdownMenuLabel className="text-gray-900 dark:text-white">Notifications</DropdownMenuLabel>
+                  <DropdownMenuSeparator className="bg-gray-200 dark:bg-slate-700" />
+                  {notifications.length === 0 ? (
+                    <div className="p-4 text-center text-gray-500 dark:text-slate-400 text-sm">
+                      No new notifications
+                    </div>
+                  ) : (
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.slice(0, 5).map((notif) => (
+                        <DropdownMenuItem 
+                          key={notif.notification_id}
+                          onClick={() => handleNotificationClick(notif)}
+                          className="flex flex-col items-start p-3 cursor-pointer hover:bg-gray-100 dark:hover:bg-slate-700 focus:bg-gray-100 dark:focus:bg-slate-700"
+                        >
+                          <div className="font-medium text-gray-900 dark:text-white text-sm">{notif.title}</div>
+                          <div className="text-xs text-gray-500 dark:text-slate-400 mt-1">{notif.message}</div>
+                          <div className="text-xs text-gray-400 dark:text-slate-500 mt-1">
+                            {new Date(notif.created_at).toLocaleString()}
+                          </div>
+                        </DropdownMenuItem>
+                      ))}
+                    </div>
+                  )}
+                  {notifications.length > 5 && (
+                    <>
+                      <DropdownMenuSeparator className="bg-gray-200 dark:bg-slate-700" />
+                      <DropdownMenuItem 
+                        onClick={() => { navigate('/app/procurement'); setNotifDropdownOpen(false); }}
+                        className="text-center text-[#215F9A] dark:text-[#6BB5FF] hover:bg-gray-100 dark:hover:bg-slate-700 cursor-pointer justify-center"
+                      >
+                        View all notifications
+                      </DropdownMenuItem>
+                    </>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
+              
               <ThemeToggle />
               {user && (
                 <div className="text-sm text-right hidden sm:block">

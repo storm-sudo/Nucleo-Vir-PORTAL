@@ -125,3 +125,9 @@ yarl==1.22.0
 zipp==3.23.0
 passlib
 bcrypt
+pytesseract
+pdf2image
+Pillow
+reportlab
+openpyxl
+python-multipart
