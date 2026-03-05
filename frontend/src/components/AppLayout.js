@@ -89,7 +89,7 @@ export default function AppLayout() {
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/app', exact: true },
     { icon: Clipboard, label: 'Work Assignments', path: '/app/work-assignments' },
-    { icon: ShoppingCart, label: 'Procurement', path: '/app/procurement' },
+    { icon: ShoppingCart, label: 'Procurement', path: '/app/procurement', roles: ['Admin', 'CA', 'Director'] },
     { icon: Users, label: 'Employees', path: '/app/employees', roles: ['Admin', 'HR'] },
     { icon: Clock, label: 'Attendance', path: '/app/attendance' },
     { icon: FileText, label: 'Leave Requests', path: '/app/leave-requests' },
