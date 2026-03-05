@@ -31,7 +31,7 @@ export default function Landing() {
       
       if (response.ok) {
         toast.success('Login successful!');
-        navigate('/app');
+        navigate('/app', { state: { user: data } });
       } else {
         toast.error(data.detail || 'Login failed');
       }
