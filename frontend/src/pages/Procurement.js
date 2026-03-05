@@ -48,6 +48,7 @@ export default function Procurement() {
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [selectedPO, setSelectedPO] = useState(null);
   const [selectedApproval, setSelectedApproval] = useState(null);
+  const [approvalComment, setApprovalComment] = useState('');
   const [uploading, setUploading] = useState(false);
   const [ocrResult, setOcrResult] = useState(null);
   
@@ -100,24 +101,26 @@ export default function Procurement() {
 
   const fetchData = async () => {
     try {
-      // Fetch quotations
-      const quoRes = await fetch(`${BACKEND_URL}/api/quotations`, { credentials: 'include' });
-      setQuotations(await quoRes.json());
+      // Fetch quotations (only if CA/Admin has access)
+      if (accessInfo?.can_access_ca_features) {
+        const quoRes = await fetch(`${BACKEND_URL}/api/quotations`, { credentials: 'include' });
+        setQuotations(await quoRes.json());
+        
+        // Fetch POs
+        const poRes = await fetch(`${BACKEND_URL}/api/po`, { credentials: 'include' });
+        setPurchaseOrders(await poRes.json());
+        
+        // Fetch GRNs
+        const grnRes = await fetch(`${BACKEND_URL}/api/grn`, { credentials: 'include' });
+        setGrns(await grnRes.json());
+        
+        // Fetch vouchers
+        const vchRes = await fetch(`${BACKEND_URL}/api/vouchers`, { credentials: 'include' });
+        setVouchers(await vchRes.json());
+      }
       
-      // Fetch POs
-      const poRes = await fetch(`${BACKEND_URL}/api/po`, { credentials: 'include' });
-      setPurchaseOrders(await poRes.json());
-      
-      // Fetch GRNs
-      const grnRes = await fetch(`${BACKEND_URL}/api/grn`, { credentials: 'include' });
-      setGrns(await grnRes.json());
-      
-      // Fetch vouchers
-      const vchRes = await fetch(`${BACKEND_URL}/api/vouchers`, { credentials: 'include' });
-      setVouchers(await vchRes.json());
-      
-      // Fetch pending approvals for directors
-      if (accessInfo?.is_director) {
+      // Fetch pending approvals for directors and admins who can approve
+      if (accessInfo?.can_approve || accessInfo?.is_director) {
         const apprRes = await fetch(`${BACKEND_URL}/api/approvals/pending`, { credentials: 'include' });
         setPendingApprovals(await apprRes.json());
       }
@@ -440,8 +443,8 @@ export default function Procurement() {
     return styles[status] || styles.draft;
   };
 
-  // Access denied for non-CA and non-Directors
-  if (accessInfo && !accessInfo.can_access_procurement && !accessInfo.is_director) {
+  // Access denied for non-CA, non-Admin, and non-Directors
+  if (accessInfo && !accessInfo.can_access_procurement && !accessInfo.is_director && !accessInfo.can_approve) {
     return (
       <div className="flex items-center justify-center min-h-[60vh]">
         <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 max-w-md">
@@ -450,7 +453,7 @@ export default function Procurement() {
             <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Access Denied</h2>
             <p className="text-gray-600 dark:text-slate-400">
               You don't have permission to access the Procurement module.
-              Only CA ({CA_EMAIL}) and Directors can access this section.
+              Only CA ({CA_EMAIL}), Directors, and Admins can access this section.
             </p>
           </CardContent>
         </Card>
@@ -458,13 +461,186 @@ export default function Procurement() {
     );
   }
 
+  // Director-Only View (not CA, not Admin) - Show only Approval Queue
+  const isDirectorOnly = accessInfo?.is_director && !accessInfo?.can_access_ca_features;
+
+  if (isDirectorOnly) {
+    return (
+      <div className="space-y-6">
+        <div className="flex justify-between items-center flex-wrap gap-4">
+          <div>
+            <h1 className="text-3xl font-heading font-bold text-gray-900 dark:text-white">Procurement</h1>
+            <p className="text-gray-600 dark:text-slate-400">
+              Director Approvals Dashboard - Review and approve POs
+            </p>
+          </div>
+          
+          {/* Notifications Badge */}
+          {notifications.length > 0 && (
+            <Badge className="bg-red-500 text-white">{notifications.length} new notifications</Badge>
+          )}
+        </div>
+
+        {/* Director Approval Queue */}
+        <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+          <CardHeader className="border-b border-gray-200 dark:border-slate-700">
+            <CardTitle className="text-xl font-heading text-gray-900 dark:text-white flex items-center">
+              <Clock className="h-6 w-6 mr-3 text-amber-500" />
+              Approval Queue
+              {pendingApprovals.length > 0 && (
+                <Badge className="ml-3 bg-amber-500 text-white">{pendingApprovals.length} pending</Badge>
+              )}
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-6">
+            {pendingApprovals.length === 0 ? (
+              <div className="text-center py-12">
+                <CheckCircle className="h-16 w-16 text-emerald-500 mx-auto mb-4" />
+                <h3 className="text-lg font-medium text-gray-900 dark:text-white mb-2">All Caught Up!</h3>
+                <p className="text-gray-600 dark:text-slate-400">No pending approvals at this time.</p>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {pendingApprovals.map(approval => (
+                  <div key={approval.approval_id} className="flex justify-between items-center p-5 bg-gradient-to-r from-amber-50 to-orange-50 dark:from-slate-700/50 dark:to-slate-700/30 rounded-xl border border-amber-200 dark:border-slate-600 hover:shadow-md transition-shadow">
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <FileText className="h-5 w-5 text-amber-600" />
+                        <span className="font-semibold text-gray-900 dark:text-white">
+                          {approval.po_details?.po_number}
+                        </span>
+                        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400">
+                          {approval.po_details?.status?.replace(/_/g, ' ')}
+                        </Badge>
+                      </div>
+                      <div className="grid sm:grid-cols-3 gap-2 text-sm">
+                        <div>
+                          <span className="text-gray-500 dark:text-slate-400">Vendor:</span>
+                          <span className="ml-2 text-gray-900 dark:text-white font-medium">{approval.po_details?.vendor_name}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 dark:text-slate-400">Amount:</span>
+                          <span className="ml-2 text-gray-900 dark:text-white font-medium">₹{approval.po_details?.total_amount?.toLocaleString()}</span>
+                        </div>
+                        <div>
+                          <span className="text-gray-500 dark:text-slate-400">Category:</span>
+                          <span className="ml-2 text-gray-900 dark:text-white font-medium">{approval.po_details?.category}</span>
+                        </div>
+                      </div>
+                      <div className="mt-2 text-xs text-gray-500 dark:text-slate-400">
+                        Created: {approval.po_details?.created_at?.slice(0, 10)} by {approval.po_details?.created_by}
+                      </div>
+                    </div>
+                    <Button
+                      onClick={() => { setSelectedApproval(approval); setApprovalDialogOpen(true); }}
+                      className="ml-4 bg-gradient-to-r from-[#FF3D33] to-[#215F9A] hover:from-[#e63529] hover:to-[#1a4d7a] text-white px-6"
+                    >
+                      <Eye className="h-4 w-4 mr-2" />
+                      Review & Decide
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Approval Dialog */}
+        <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+          <DialogContent className="max-w-2xl bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
+            <DialogHeader>
+              <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
+                <FileText className="h-5 w-5 text-[#215F9A]" />
+                Review PO: {selectedApproval?.po_details?.po_number}
+              </DialogTitle>
+            </DialogHeader>
+            {selectedApproval && (
+              <div className="space-y-6">
+                {/* PO Details */}
+                <div className="grid grid-cols-2 gap-4 p-4 bg-gray-50 dark:bg-slate-700/50 rounded-lg">
+                  <div>
+                    <label className="text-sm text-gray-500 dark:text-slate-400">Vendor</label>
+                    <div className="font-medium text-gray-900 dark:text-white">{selectedApproval.po_details?.vendor_name}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500 dark:text-slate-400">Amount</label>
+                    <div className="font-medium text-gray-900 dark:text-white">₹{selectedApproval.po_details?.total_amount?.toLocaleString()}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500 dark:text-slate-400">Category</label>
+                    <div className="font-medium text-gray-900 dark:text-white">{selectedApproval.po_details?.category}</div>
+                  </div>
+                  <div>
+                    <label className="text-sm text-gray-500 dark:text-slate-400">Department</label>
+                    <div className="font-medium text-gray-900 dark:text-white">{selectedApproval.po_details?.department}</div>
+                  </div>
+                  <div className="col-span-2">
+                    <label className="text-sm text-gray-500 dark:text-slate-400">GST Breakdown</label>
+                    <div className="font-medium text-gray-900 dark:text-white">
+                      Subtotal: ₹{selectedApproval.po_details?.subtotal?.toLocaleString()} + GST ({selectedApproval.po_details?.gst_pct}%): ₹{selectedApproval.po_details?.gst_amount?.toLocaleString()}
+                    </div>
+                  </div>
+                  {selectedApproval.po_details?.notes && (
+                    <div className="col-span-2">
+                      <label className="text-sm text-gray-500 dark:text-slate-400">Notes</label>
+                      <div className="font-medium text-gray-900 dark:text-white">{selectedApproval.po_details?.notes}</div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Comment Input */}
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Decision Comment (Optional)</label>
+                  <Textarea
+                    placeholder="Add your comment..."
+                    value={approvalComment}
+                    onChange={(e) => setApprovalComment(e.target.value)}
+                    className="bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600"
+                    rows={3}
+                  />
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-slate-700">
+                  <Button
+                    onClick={() => handleApprovalDecision('approved')}
+                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-2" />
+                    Approve
+                  </Button>
+                  <Button
+                    onClick={() => handleApprovalDecision('rejected')}
+                    variant="destructive"
+                    className="flex-1"
+                  >
+                    <XCircle className="h-4 w-4 mr-2" />
+                    Reject
+                  </Button>
+                  <Button
+                    onClick={() => setApprovalDialogOpen(false)}
+                    variant="outline"
+                    className="border-gray-300 dark:border-slate-600"
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+      </div>
+    );
+  }
+
+  // CA/Admin View - Full Dashboard
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-heading font-bold text-gray-900 dark:text-white">Procurement</h1>
           <p className="text-gray-600 dark:text-slate-400">
-            {accessInfo?.is_ca ? 'CA Dashboard - Manage quotations, POs, and payments' : 'Director Approvals Dashboard'}
+            {accessInfo?.is_ca ? 'CA Dashboard - Manage quotations, POs, and payments' : 'Admin Dashboard - Full Procurement Access'}
           </p>
         </div>
         
@@ -474,8 +650,8 @@ export default function Procurement() {
         )}
       </div>
 
-      {/* Director View - Pending Approvals */}
-      {accessInfo?.is_director && pendingApprovals.length > 0 && (
+      {/* Pending Approvals for Admin/CA who are also Directors */}
+      {accessInfo?.can_approve && pendingApprovals.length > 0 && (
         <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700 border-l-4 border-l-amber-500">
           <CardHeader>
             <CardTitle className="text-lg font-heading text-gray-900 dark:text-white flex items-center">
@@ -506,16 +682,15 @@ export default function Procurement() {
         </Card>
       )}
 
-      {/* CA View - Full Dashboard */}
-      {accessInfo?.can_access_procurement && (
-        <Tabs defaultValue="quotations" className="space-y-6">
-          <TabsList className="bg-gray-100 dark:bg-slate-800">
-            <TabsTrigger value="quotations">Quotations</TabsTrigger>
-            <TabsTrigger value="po">Purchase Orders</TabsTrigger>
-            <TabsTrigger value="grn">GRN</TabsTrigger>
-            <TabsTrigger value="vouchers">Vouchers</TabsTrigger>
-            <TabsTrigger value="reports">Reports</TabsTrigger>
-          </TabsList>
+      {/* CA/Admin View - Full Dashboard with Tabs */}
+      <Tabs defaultValue="quotations" className="space-y-6">
+        <TabsList className="bg-gray-100 dark:bg-slate-800">
+          <TabsTrigger value="quotations">Quotations</TabsTrigger>
+          <TabsTrigger value="po">Purchase Orders</TabsTrigger>
+          <TabsTrigger value="grn">GRN</TabsTrigger>
+          <TabsTrigger value="vouchers">Vouchers</TabsTrigger>
+          <TabsTrigger value="reports">Reports</TabsTrigger>
+        </TabsList>
 
           {/* Quotations Tab */}
           <TabsContent value="quotations" className="space-y-4">
@@ -785,7 +960,6 @@ export default function Procurement() {
             </div>
           </TabsContent>
         </Tabs>
-      )}
 
       {/* Quotation Confirmation Dialog */}
       <Dialog open={quotationDialogOpen} onOpenChange={setQuotationDialogOpen}>

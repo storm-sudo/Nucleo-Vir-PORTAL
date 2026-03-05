@@ -1143,12 +1143,16 @@ async def export_report(
     format: str = Query("csv", description="csv, xlsx, pdf"),
     session_token: Optional[str] = Cookie(None)
 ):
-    """Export reports"""
+    """Export reports - CA and Admin only"""
     from server import db, get_user_from_token
     
     user = await get_user_from_token(session_token)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Block Directors from accessing reports (CA-only feature)
+    if user.email.lower() != CA_EMAIL.lower() and user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only CA and Admin can access reports")
     
     # Build date query
     date_query = {}
@@ -1314,12 +1318,16 @@ async def export_combined_report(
     format: str = Query("csv", description="csv, xlsx, pdf"),
     session_token: Optional[str] = Cookie(None)
 ):
-    """Export all reports combined into one file"""
+    """Export all reports combined into one file - CA and Admin only"""
     from server import db, get_user_from_token
     
     user = await get_user_from_token(session_token)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Block Directors from accessing reports (CA-only feature)
+    if user.email.lower() != CA_EMAIL.lower() and user.role != "Admin":
+        raise HTTPException(status_code=403, detail="Only CA and Admin can access reports")
     
     COMPANY_NAME = "NucleoVir Therapeutics Pvt. Ltd."
     date_range_str = f"{from_date} to {to_date}"
@@ -1705,9 +1713,14 @@ async def check_procurement_access(session_token: Optional[str] = Cookie(None)):
     is_director = email in [d.lower() for d in DIRECTORS]
     is_admin = user.role == "Admin"
     
+    # Directors who are NOT also Admin should only have Director access
+    # CA has full procurement access
+    # Admin has full access
+    can_access_ca_features = is_ca or is_admin
+    
     # Get pending approvals count for directors
     pending_count = 0
-    if is_director:
+    if is_director or is_admin:
         pending_count = await db.approvals.count_documents({
             "approver_email": email,
             "status": "pending"
@@ -1718,6 +1731,9 @@ async def check_procurement_access(session_token: Optional[str] = Cookie(None)):
         "is_director": is_director,
         "is_admin": is_admin,
         "can_access_procurement": is_ca or is_admin,
+        "can_access_ca_features": can_access_ca_features,  # Full CA features
+        "can_approve": is_director or is_admin,  # Director approval access only
         "pending_approvals": pending_count,
-        "email": email
+        "email": email,
+        "role": user.role
     }
