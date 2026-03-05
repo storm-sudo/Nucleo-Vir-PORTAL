@@ -158,7 +158,7 @@ A comprehensive, responsive enterprise application for Nucleo-vir Therapeutics -
 - **Director**: ayush@nucleovir.com / Nv@Dir2026!
 
 ## Deployment
-- **Preview**: https://p2p-automation.preview.emergentagent.com
+- **Preview**: https://staging-repo.preview.emergentagent.com
 
 ## Future Enhancements (Backlog)
 - [ ] Cloud OCR integration (Google Vision/Azure Form Recognizer)
