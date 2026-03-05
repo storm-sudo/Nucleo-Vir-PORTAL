@@ -1,0 +1,23 @@
+NucleoVir Therapeutics Pvt. Ltd.
+Combined Financial Report
+Period: 2026-01-01 to 2026-03-31
+Generated: 2026-03-05 09:10
+
+=== PO REGISTER ===
+PO Number,Date,Vendor,Category,Amount,GST,Total,Status
+NVT/PO/FY2026/0001,2026-03-05,fgfg,Lab Equipment,29115.254237288136,5240.745762711864,34356.0,goods_received
+TOTAL,,,,29115.254237288136,5240.745762711864,34356.0,
+
+=== PAYMENT REGISTER ===
+Voucher No,Date,Vendor,Invoice No,Amount,TDS,Net Paid,Payment Ref
+TOTAL,,,,0,0,0,
+
+=== VENDOR AGING ===
+Vendor,Total Due,Invoices,Oldest Invoice
+fgfg,0.0,1,2026-03-05
+TOTAL,0.0,1,
+
+=== GST/TDS SUMMARY ===
+Voucher No,Vendor,Invoice Amount,GST Amount,TDS %,TDS Amount
+NVT/VCH/FY2026/0001,fgfg,0.0,5240.745762711864,0,0.0
+TOTAL,,0.0,5240.745762711864,,0.0

@@ -1305,6 +1305,329 @@ async def export_report(
     
     return {"headers": headers, "data": data}
 
+# ==================== COMBINED REPORT EXPORT ====================
+
+@procurement_router.get("/reports/combined")
+async def export_combined_report(
+    from_date: str = Query(..., description="Start date YYYY-MM-DD"),
+    to_date: str = Query(..., description="End date YYYY-MM-DD"),
+    format: str = Query("csv", description="csv, xlsx, pdf"),
+    session_token: Optional[str] = Cookie(None)
+):
+    """Export all reports combined into one file"""
+    from server import db, get_user_from_token
+    
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    COMPANY_NAME = "NucleoVir Therapeutics Pvt. Ltd."
+    date_range_str = f"{from_date} to {to_date}"
+    filename = f"Reports_PO_Payment_Vendor_GSTTDS_{from_date}_{to_date}"
+    
+    # Ensure storage directory exists
+    storage_dir = Path("/app/storage/Finance/Reports/FY2026")
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    
+    # Build date query
+    date_query = {"$gte": from_date, "$lte": to_date}
+    
+    # ========== PO REGISTER ==========
+    po_query = {"archived": {"$ne": True}, "created_at": date_query}
+    pos = await db.purchase_orders.find(po_query, {"_id": 0}).sort([("created_at", -1)]).to_list(1000)
+    
+    po_headers = ["PO Number", "Date", "Vendor", "Category", "Amount", "GST", "Total", "Status"]
+    po_data = [[
+        po.get("po_number", ""),
+        po.get("created_at", "")[:10] if po.get("created_at") else "",
+        po.get("vendor_name", ""),
+        po.get("category", ""),
+        po.get("subtotal", 0),
+        po.get("gst_amount", 0),
+        po.get("total_amount", 0),
+        po.get("status", "")
+    ] for po in pos]
+    
+    # PO Totals
+    po_total_amount = sum(p.get("subtotal", 0) for p in pos)
+    po_total_gst = sum(p.get("gst_amount", 0) for p in pos)
+    po_total_grand = sum(p.get("total_amount", 0) for p in pos)
+    po_totals = ["TOTAL", "", "", "", po_total_amount, po_total_gst, po_total_grand, ""]
+    
+    # ========== PAYMENT REGISTER ==========
+    payment_query = {"archived": {"$ne": True}, "payment_date": date_query}
+    vouchers_paid = await db.vouchers.find(payment_query, {"_id": 0}).sort([("payment_date", -1)]).to_list(1000)
+    
+    payment_headers = ["Voucher No", "Date", "Vendor", "Invoice No", "Amount", "TDS", "Net Paid", "Payment Ref"]
+    payment_data = [[
+        v.get("voucher_number", ""),
+        v.get("payment_date", ""),
+        v.get("vendor_name", ""),
+        v.get("invoice_number", ""),
+        v.get("invoice_amount", 0),
+        v.get("tds_amount", 0),
+        v.get("net_payable", 0),
+        v.get("payment_reference", "")
+    ] for v in vouchers_paid]
+    
+    # Payment Totals
+    pay_total_amount = sum(v.get("invoice_amount", 0) for v in vouchers_paid)
+    pay_total_tds = sum(v.get("tds_amount", 0) for v in vouchers_paid)
+    pay_total_net = sum(v.get("net_payable", 0) for v in vouchers_paid)
+    payment_totals = ["TOTAL", "", "", "", pay_total_amount, pay_total_tds, pay_total_net, ""]
+    
+    # ========== VENDOR AGING ==========
+    pipeline = [
+        {"$match": {"payment_status": "unpaid", "archived": {"$ne": True}}},
+        {"$group": {
+            "_id": "$vendor_name",
+            "total_due": {"$sum": "$net_payable"},
+            "count": {"$sum": 1},
+            "oldest_date": {"$min": "$created_at"}
+        }}
+    ]
+    aging = await db.vouchers.aggregate(pipeline).to_list(100)
+    
+    aging_headers = ["Vendor", "Total Due", "Invoices", "Oldest Invoice"]
+    aging_data = [[
+        a.get("_id", ""),
+        a.get("total_due", 0),
+        a.get("count", 0),
+        a.get("oldest_date", "")[:10] if a.get("oldest_date") else ""
+    ] for a in aging]
+    
+    # Aging Totals
+    aging_total_due = sum(a.get("total_due", 0) for a in aging)
+    aging_total_invoices = sum(a.get("count", 0) for a in aging)
+    aging_totals = ["TOTAL", aging_total_due, aging_total_invoices, ""]
+    
+    # ========== GST/TDS SUMMARY ==========
+    gst_query = {"archived": {"$ne": True}, "created_at": date_query}
+    all_vouchers = await db.vouchers.find(gst_query, {"_id": 0}).to_list(1000)
+    
+    gst_headers = ["Voucher No", "Vendor", "Invoice Amount", "GST Amount", "TDS %", "TDS Amount"]
+    gst_data = []
+    for v in all_vouchers:
+        po = await db.purchase_orders.find_one({"po_id": v.get("po_id")}, {"_id": 0})
+        gst_amount = po.get("gst_amount", 0) if po else 0
+        gst_data.append([
+            v.get("voucher_number", ""),
+            v.get("vendor_name", ""),
+            v.get("invoice_amount", 0),
+            gst_amount,
+            v.get("tds_pct", 0),
+            v.get("tds_amount", 0)
+        ])
+    
+    # GST/TDS Totals
+    gst_total_invoice = sum(v.get("invoice_amount", 0) for v in all_vouchers)
+    gst_total_gst = sum(row[3] for row in gst_data)
+    gst_total_tds = sum(v.get("tds_amount", 0) for v in all_vouchers)
+    gst_totals = ["TOTAL", "", gst_total_invoice, gst_total_gst, "", gst_total_tds]
+    
+    # ========== GENERATE OUTPUT ==========
+    if format == "csv":
+        output = io.StringIO()
+        
+        # Header
+        output.write(f"{COMPANY_NAME}\n")
+        output.write(f"Combined Financial Report\n")
+        output.write(f"Period: {date_range_str}\n")
+        output.write(f"Generated: {datetime.now().strftime('%Y-%m-%d %H:%M')}\n\n")
+        
+        # PO Register
+        output.write("=== PO REGISTER ===\n")
+        output.write(",".join(po_headers) + "\n")
+        for row in po_data:
+            output.write(",".join(str(cell) for cell in row) + "\n")
+        output.write(",".join(str(cell) for cell in po_totals) + "\n\n")
+        
+        # Payment Register
+        output.write("=== PAYMENT REGISTER ===\n")
+        output.write(",".join(payment_headers) + "\n")
+        for row in payment_data:
+            output.write(",".join(str(cell) for cell in row) + "\n")
+        output.write(",".join(str(cell) for cell in payment_totals) + "\n\n")
+        
+        # Vendor Aging
+        output.write("=== VENDOR AGING ===\n")
+        output.write(",".join(aging_headers) + "\n")
+        for row in aging_data:
+            output.write(",".join(str(cell) for cell in row) + "\n")
+        output.write(",".join(str(cell) for cell in aging_totals) + "\n\n")
+        
+        # GST/TDS
+        output.write("=== GST/TDS SUMMARY ===\n")
+        output.write(",".join(gst_headers) + "\n")
+        for row in gst_data:
+            output.write(",".join(str(cell) for cell in row) + "\n")
+        output.write(",".join(str(cell) for cell in gst_totals) + "\n")
+        
+        # Save to storage
+        file_path = storage_dir / f"{filename}.csv"
+        with open(file_path, 'w') as f:
+            f.write(output.getvalue())
+        
+        return StreamingResponse(
+            io.BytesIO(output.getvalue().encode()),
+            media_type="text/csv",
+            headers={"Content-Disposition": f"attachment; filename={filename}.csv"}
+        )
+    
+    elif format == "xlsx" and XLSX_AVAILABLE:
+        wb = openpyxl.Workbook()
+        
+        # PO Register Sheet
+        ws_po = wb.active
+        ws_po.title = "PO Register"
+        ws_po.append([COMPANY_NAME])
+        ws_po.append(["Combined Report - PO Register"])
+        ws_po.append([f"Period: {date_range_str}"])
+        ws_po.append([])
+        ws_po.append(po_headers)
+        for row in po_data:
+            ws_po.append(row)
+        ws_po.append(po_totals)
+        for i in range(1, len(po_headers) + 1):
+            ws_po.column_dimensions[get_column_letter(i)].width = 15
+        
+        # Payment Register Sheet
+        ws_pay = wb.create_sheet("Payment Register")
+        ws_pay.append([COMPANY_NAME])
+        ws_pay.append(["Combined Report - Payment Register"])
+        ws_pay.append([f"Period: {date_range_str}"])
+        ws_pay.append([])
+        ws_pay.append(payment_headers)
+        for row in payment_data:
+            ws_pay.append(row)
+        ws_pay.append(payment_totals)
+        for i in range(1, len(payment_headers) + 1):
+            ws_pay.column_dimensions[get_column_letter(i)].width = 15
+        
+        # Vendor Aging Sheet
+        ws_aging = wb.create_sheet("Vendor Aging")
+        ws_aging.append([COMPANY_NAME])
+        ws_aging.append(["Combined Report - Vendor Aging"])
+        ws_aging.append([f"Period: {date_range_str}"])
+        ws_aging.append([])
+        ws_aging.append(aging_headers)
+        for row in aging_data:
+            ws_aging.append(row)
+        ws_aging.append(aging_totals)
+        for i in range(1, len(aging_headers) + 1):
+            ws_aging.column_dimensions[get_column_letter(i)].width = 15
+        
+        # GST/TDS Sheet
+        ws_gst = wb.create_sheet("GST-TDS Summary")
+        ws_gst.append([COMPANY_NAME])
+        ws_gst.append(["Combined Report - GST/TDS Summary"])
+        ws_gst.append([f"Period: {date_range_str}"])
+        ws_gst.append([])
+        ws_gst.append(gst_headers)
+        for row in gst_data:
+            ws_gst.append(row)
+        ws_gst.append(gst_totals)
+        for i in range(1, len(gst_headers) + 1):
+            ws_gst.column_dimensions[get_column_letter(i)].width = 15
+        
+        output = io.BytesIO()
+        wb.save(output)
+        output.seek(0)
+        
+        # Save to storage
+        file_path = storage_dir / f"{filename}.xlsx"
+        with open(file_path, 'wb') as f:
+            output.seek(0)
+            f.write(output.read())
+        output.seek(0)
+        
+        return StreamingResponse(
+            output,
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={"Content-Disposition": f"attachment; filename={filename}.xlsx"}
+        )
+    
+    elif format == "pdf" and PDF_AVAILABLE:
+        buffer = io.BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=0.5*inch, bottomMargin=0.5*inch)
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=14, alignment=1)
+        subtitle_style = ParagraphStyle('Subtitle', parent=styles['Normal'], fontSize=10, alignment=1)
+        section_style = ParagraphStyle('Section', parent=styles['Heading2'], fontSize=12, spaceAfter=10)
+        
+        # Header
+        elements.append(Paragraph(COMPANY_NAME, title_style))
+        elements.append(Paragraph("Combined Financial Report", subtitle_style))
+        elements.append(Paragraph(f"Period: {date_range_str}", subtitle_style))
+        elements.append(Spacer(1, 20))
+        
+        def make_table(headers, data, totals):
+            table_data = [headers] + data + [totals]
+            t = Table(table_data, repeatRows=1)
+            t.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.Color(0.13, 0.37, 0.6)),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('BACKGROUND', (0, -1), (-1, -1), colors.Color(0.9, 0.9, 0.9)),
+                ('FONTNAME', (0, -1), (-1, -1), 'Helvetica-Bold'),
+                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+                ('FONTSIZE', (0, 0), (-1, -1), 7),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('TOPPADDING', (0, 0), (-1, -1), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 4),
+            ]))
+            return t
+        
+        # PO Register
+        elements.append(Paragraph("PO Register", section_style))
+        if po_data:
+            elements.append(make_table(po_headers, po_data, po_totals))
+        else:
+            elements.append(Paragraph("No records found", styles['Normal']))
+        elements.append(Spacer(1, 15))
+        
+        # Payment Register
+        elements.append(Paragraph("Payment Register", section_style))
+        if payment_data:
+            elements.append(make_table(payment_headers, payment_data, payment_totals))
+        else:
+            elements.append(Paragraph("No records found", styles['Normal']))
+        elements.append(Spacer(1, 15))
+        
+        # Vendor Aging
+        elements.append(Paragraph("Vendor Aging", section_style))
+        if aging_data:
+            elements.append(make_table(aging_headers, aging_data, aging_totals))
+        else:
+            elements.append(Paragraph("No records found", styles['Normal']))
+        elements.append(Spacer(1, 15))
+        
+        # GST/TDS Summary
+        elements.append(Paragraph("GST/TDS Summary", section_style))
+        if gst_data:
+            elements.append(make_table(gst_headers, gst_data, gst_totals))
+        else:
+            elements.append(Paragraph("No records found", styles['Normal']))
+        
+        doc.build(elements)
+        buffer.seek(0)
+        
+        # Save to storage
+        file_path = storage_dir / f"{filename}.pdf"
+        with open(file_path, 'wb') as f:
+            buffer.seek(0)
+            f.write(buffer.read())
+        buffer.seek(0)
+        
+        return StreamingResponse(
+            buffer,
+            media_type="application/pdf",
+            headers={"Content-Disposition": f"attachment; filename={filename}.pdf"}
+        )
+    
+    return {"error": "Format not supported"}
+
 # ==================== AUDIT & NOTIFICATIONS ====================
 
 @procurement_router.get("/audit/{entity_type}/{entity_id}")

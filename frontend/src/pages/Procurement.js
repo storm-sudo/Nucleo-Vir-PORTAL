@@ -38,6 +38,12 @@ export default function Procurement() {
   const [voucherDialogOpen, setVoucherDialogOpen] = useState(false);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
   const [reportDialogOpen, setReportDialogOpen] = useState(false);
+  const [combinedReportDates, setCombinedReportDates] = useState({
+    from_date: new Date().toISOString().slice(0, 8) + '01',
+    to_date: new Date().toISOString().slice(0, 10)
+  });
+  const [combinedReportFormat, setCombinedReportFormat] = useState('xlsx');
+  const [downloadingCombined, setDownloadingCombined] = useState(false);
   
   const [selectedQuotation, setSelectedQuotation] = useState(null);
   const [selectedPO, setSelectedPO] = useState(null);
@@ -272,6 +278,33 @@ export default function Procurement() {
       }
     } catch (error) {
       toast.error('Export failed');
+    }
+  };
+
+  const handleCombinedExport = async () => {
+    setDownloadingCombined(true);
+    try {
+      const response = await fetch(
+        `${BACKEND_URL}/api/reports/combined?from_date=${combinedReportDates.from_date}&to_date=${combinedReportDates.to_date}&format=${combinedReportFormat}`,
+        { credentials: 'include' }
+      );
+      
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `Reports_PO_Payment_Vendor_GSTTDS_${combinedReportDates.from_date}_${combinedReportDates.to_date}.${combinedReportFormat}`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        toast.success('Combined report downloaded successfully');
+      } else {
+        toast.error('Failed to generate combined report');
+      }
+    } catch (error) {
+      toast.error('Export failed');
+    } finally {
+      setDownloadingCombined(false);
     }
   };
 
@@ -660,9 +693,76 @@ export default function Procurement() {
           </TabsContent>
 
           {/* Reports Tab */}
-          <TabsContent value="reports" className="space-y-4">
+          <TabsContent value="reports" className="space-y-6">
             <h2 className="text-xl font-heading font-semibold text-gray-900 dark:text-white">Reports Export</h2>
             
+            {/* Combined Report Section */}
+            <Card className="bg-gradient-to-r from-[#215F9A]/10 to-[#FF3D33]/10 border-[#215F9A]/30 dark:border-[#215F9A]/50">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 text-gray-900 dark:text-white">
+                  <Archive className="h-5 w-5 text-[#215F9A]" />
+                  Download Combined Report
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <p className="text-sm text-gray-600 dark:text-slate-400">
+                  Generate a consolidated report containing PO Register, Payment Register, Vendor Aging, and GST/TDS Summary.
+                </p>
+                <div className="grid sm:grid-cols-3 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">From Date</label>
+                    <Input 
+                      type="date" 
+                      value={combinedReportDates.from_date}
+                      onChange={(e) => setCombinedReportDates({...combinedReportDates, from_date: e.target.value})}
+                      className="bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">To Date</label>
+                    <Input 
+                      type="date"
+                      value={combinedReportDates.to_date}
+                      onChange={(e) => setCombinedReportDates({...combinedReportDates, to_date: e.target.value})}
+                      className="bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-1">Format</label>
+                    <Select value={combinedReportFormat} onValueChange={setCombinedReportFormat}>
+                      <SelectTrigger className="bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent className="bg-white dark:bg-slate-800">
+                        <SelectItem value="csv">CSV</SelectItem>
+                        <SelectItem value="xlsx">Excel (XLSX)</SelectItem>
+                        <SelectItem value="pdf">PDF</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <Button 
+                  onClick={handleCombinedExport}
+                  disabled={downloadingCombined}
+                  className="w-full sm:w-auto bg-gradient-to-r from-[#FF3D33] to-[#215F9A] hover:from-[#e63529] hover:to-[#1a4d7a] text-white"
+                >
+                  {downloadingCombined ? (
+                    <>
+                      <Clock className="h-4 w-4 mr-2 animate-spin" />
+                      Generating...
+                    </>
+                  ) : (
+                    <>
+                      <Download className="h-4 w-4 mr-2" />
+                      Download Combined Report
+                    </>
+                  )}
+                </Button>
+              </CardContent>
+            </Card>
+            
+            {/* Individual Reports */}
+            <h3 className="text-lg font-medium text-gray-800 dark:text-slate-200 pt-2">Individual Reports</h3>
             <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">
               {[
                 { type: 'po_register', label: 'PO Register', icon: FileSpreadsheet },
