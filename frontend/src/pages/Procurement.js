@@ -52,6 +52,13 @@ export default function Procurement() {
   const [uploading, setUploading] = useState(false);
   const [ocrResult, setOcrResult] = useState(null);
   
+  // Signature-based approval states
+  const [signatureFile, setSignatureFile] = useState(null);
+  const [signedPOFile, setSignedPOFile] = useState(null);
+  const [rejectionReason, setRejectionReason] = useState('');
+  const [uploadingSignature, setUploadingSignature] = useState(false);
+  const [uploadingSignedPO, setUploadingSignedPO] = useState(false);
+  
   const [quotationForm, setQuotationForm] = useState({
     quotation_no: '', vendor_name: '', category: 'General', gst_pct: 18,
     total_amount: 0, validity_date: '', department: 'Operations', description: ''
@@ -259,6 +266,124 @@ export default function Procurement() {
       }
     } catch (error) {
       toast.error('Error');
+    }
+  };
+
+  // Download PO for signing (approval-based)
+  const handleDownloadPOForSigning = async (approvalId) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/approvals/${approvalId}/download-po`, { credentials: 'include' });
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `PO_for_signing.pdf`;
+        a.click();
+        window.URL.revokeObjectURL(url);
+        toast.success('PO downloaded for signing');
+      } else {
+        toast.error('Download failed');
+      }
+    } catch (error) {
+      toast.error('Download error');
+    }
+  };
+
+  // Upload signature image to approve PO
+  const handleUploadSignature = async (approvalId) => {
+    if (!signatureFile) {
+      toast.error('Please select a signature file');
+      return;
+    }
+    
+    setUploadingSignature(true);
+    try {
+      const formData = new FormData();
+      formData.append('signature', signatureFile);
+      
+      const response = await fetch(`${BACKEND_URL}/api/approvals/${approvalId}/upload-signature`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+      
+      if (response.ok) {
+        toast.success('PO approved with your signature!');
+        setApprovalDialogOpen(false);
+        setSignatureFile(null);
+        fetchData();
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Approval failed');
+      }
+    } catch (error) {
+      toast.error('Error uploading signature');
+    }
+    setUploadingSignature(false);
+  };
+
+  // Upload signed PO document
+  const handleUploadSignedPO = async (approvalId) => {
+    if (!signedPOFile) {
+      toast.error('Please select a signed PO file');
+      return;
+    }
+    
+    setUploadingSignedPO(true);
+    try {
+      const formData = new FormData();
+      formData.append('signed_po', signedPOFile);
+      
+      const response = await fetch(`${BACKEND_URL}/api/approvals/${approvalId}/upload-signed-po`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+      
+      if (response.ok) {
+        toast.success('Signed PO uploaded and approved!');
+        setApprovalDialogOpen(false);
+        setSignedPOFile(null);
+        fetchData();
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Upload failed');
+      }
+    } catch (error) {
+      toast.error('Error uploading signed PO');
+    }
+    setUploadingSignedPO(false);
+  };
+
+  // Reject PO with reason
+  const handleRejectPO = async (approvalId) => {
+    if (!rejectionReason.trim()) {
+      toast.error('Please provide a rejection reason');
+      return;
+    }
+    
+    try {
+      const formData = new FormData();
+      formData.append('reason', rejectionReason);
+      
+      const response = await fetch(`${BACKEND_URL}/api/approvals/${approvalId}/reject`, {
+        method: 'POST',
+        credentials: 'include',
+        body: formData
+      });
+      
+      if (response.ok) {
+        toast.success('PO rejected');
+        setApprovalDialogOpen(false);
+        setRejectionReason('');
+        fetchData();
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Rejection failed');
+      }
+    } catch (error) {
+      toast.error('Error rejecting PO');
     }
   };
 
@@ -545,13 +670,13 @@ export default function Procurement() {
           </CardContent>
         </Card>
 
-        {/* Approval Dialog */}
+        {/* Approval Dialog - Signature Based */}
         <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
           <DialogContent className="max-w-2xl bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">
             <DialogHeader>
               <DialogTitle className="text-gray-900 dark:text-white flex items-center gap-2">
                 <FileText className="h-5 w-5 text-[#215F9A]" />
-                Review PO: {selectedApproval?.po_details?.po_number}
+                Review & Sign PO: {selectedApproval?.po_details?.po_number}
               </DialogTitle>
             </DialogHeader>
             {selectedApproval && (
@@ -580,49 +705,118 @@ export default function Procurement() {
                       Subtotal: ₹{selectedApproval.po_details?.subtotal?.toLocaleString()} + GST ({selectedApproval.po_details?.gst_pct}%): ₹{selectedApproval.po_details?.gst_amount?.toLocaleString()}
                     </div>
                   </div>
-                  {selectedApproval.po_details?.notes && (
-                    <div className="col-span-2">
-                      <label className="text-sm text-gray-500 dark:text-slate-400">Notes</label>
-                      <div className="font-medium text-gray-900 dark:text-white">{selectedApproval.po_details?.notes}</div>
-                    </div>
-                  )}
                 </div>
-                
-                {/* Comment Input */}
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 dark:text-slate-300 mb-2">Decision Comment (Optional)</label>
-                  <Textarea
-                    placeholder="Add your comment..."
-                    value={approvalComment}
-                    onChange={(e) => setApprovalComment(e.target.value)}
-                    className="bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600"
-                    rows={3}
-                  />
-                </div>
-                
-                {/* Action Buttons */}
-                <div className="flex gap-3 pt-4 border-t border-gray-200 dark:border-slate-700">
+
+                {/* Step 1: Download PO */}
+                <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-800">
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2 flex items-center">
+                    <span className="bg-blue-600 text-white rounded-full w-6 h-6 flex items-center justify-center mr-2 text-sm">1</span>
+                    Download PO for Signing
+                  </h4>
+                  <p className="text-sm text-blue-700 dark:text-blue-300 mb-3">
+                    Download the PO document to review and add your signature.
+                  </p>
                   <Button
-                    onClick={() => handleApprovalDecision('approved')}
-                    className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
+                    onClick={() => handleDownloadPOForSigning(selectedApproval.approval_id)}
+                    className="bg-blue-600 hover:bg-blue-700 text-white"
                   >
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Approve
+                    <Download className="h-4 w-4 mr-2" />
+                    Download PO PDF
                   </Button>
+                </div>
+
+                {/* Step 2: Upload Options */}
+                <div className="p-4 bg-emerald-50 dark:bg-emerald-900/20 rounded-lg border border-emerald-200 dark:border-emerald-800">
+                  <h4 className="font-semibold text-emerald-900 dark:text-emerald-100 mb-2 flex items-center">
+                    <span className="bg-emerald-600 text-white rounded-full w-6 h-6 flex items-center justify-center mr-2 text-sm">2</span>
+                    Upload Signature / Signed PO
+                  </h4>
+                  <p className="text-sm text-emerald-700 dark:text-emerald-300 mb-3">
+                    Choose one of the options below to approve the PO:
+                  </p>
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    {/* Option A: Upload Signature Image */}
+                    <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border-2 border-dashed border-emerald-300 dark:border-emerald-700">
+                      <h5 className="font-medium text-gray-900 dark:text-white mb-2 text-sm">Option A: Upload Signature</h5>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">
+                        Upload your signature image (PNG, JPG) and it will be applied to the PO automatically.
+                      </p>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => setSignatureFile(e.target.files[0])}
+                        className="text-xs w-full"
+                      />
+                      {signatureFile && (
+                        <Button
+                          onClick={() => handleUploadSignature(selectedApproval.approval_id)}
+                          className="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm"
+                          disabled={uploadingSignature}
+                        >
+                          {uploadingSignature ? 'Uploading...' : 'Apply Signature & Approve'}
+                        </Button>
+                      )}
+                    </div>
+
+                    {/* Option B: Upload Signed PO */}
+                    <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border-2 border-dashed border-emerald-300 dark:border-emerald-700">
+                      <h5 className="font-medium text-gray-900 dark:text-white mb-2 text-sm">Option B: Upload Signed PO</h5>
+                      <p className="text-xs text-gray-500 dark:text-slate-400 mb-2">
+                        Upload the physically signed PO document (PDF, JPG, PNG).
+                      </p>
+                      <input
+                        type="file"
+                        accept=".pdf,image/*"
+                        onChange={(e) => setSignedPOFile(e.target.files[0])}
+                        className="text-xs w-full"
+                      />
+                      {signedPOFile && (
+                        <Button
+                          onClick={() => handleUploadSignedPO(selectedApproval.approval_id)}
+                          className="mt-2 w-full bg-emerald-600 hover:bg-emerald-700 text-white text-sm"
+                          disabled={uploadingSignedPO}
+                        >
+                          {uploadingSignedPO ? 'Uploading...' : 'Upload & Approve'}
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Reject Option */}
+                <div className="p-4 bg-red-50 dark:bg-red-900/20 rounded-lg border border-red-200 dark:border-red-800">
+                  <h4 className="font-semibold text-red-900 dark:text-red-100 mb-2">Reject PO</h4>
+                  <Textarea
+                    placeholder="Enter rejection reason..."
+                    value={rejectionReason}
+                    onChange={(e) => setRejectionReason(e.target.value)}
+                    className="bg-white dark:bg-slate-900 border-gray-300 dark:border-slate-600 mb-3"
+                    rows={2}
+                  />
                   <Button
-                    onClick={() => handleApprovalDecision('rejected')}
+                    onClick={() => handleRejectPO(selectedApproval.approval_id)}
                     variant="destructive"
-                    className="flex-1"
+                    disabled={!rejectionReason.trim()}
                   >
                     <XCircle className="h-4 w-4 mr-2" />
-                    Reject
+                    Reject PO
                   </Button>
+                </div>
+
+                {/* Close Button */}
+                <div className="flex justify-end pt-4 border-t border-gray-200 dark:border-slate-700">
                   <Button
-                    onClick={() => setApprovalDialogOpen(false)}
+                    onClick={() => {
+                      setApprovalDialogOpen(false);
+                      setSignatureFile(null);
+                      setSignedPOFile(null);
+                      setRejectionReason('');
+                    }}
                     variant="outline"
                     className="border-gray-300 dark:border-slate-600"
                   >
-                    Cancel
+                    Close
                   </Button>
                 </div>
               </div>

@@ -858,6 +858,486 @@ async def make_approval_decision(
     
     return {"message": f"Approval {data.decision}", "po_id": po_id}
 
+
+# ==================== SIGNATURE-BASED APPROVAL WORKFLOW ====================
+
+@procurement_router.post("/approvals/{approval_id}/upload-signature")
+async def upload_signature_for_approval(
+    approval_id: str,
+    signature: UploadFile = File(...),
+    session_token: Optional[str] = Cookie(None)
+):
+    """
+    Director uploads their signature image to approve PO.
+    The signature will be applied to the PO PDF.
+    """
+    from server import db, get_user_from_token
+    
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Verify approver
+    approval = await db.approvals.find_one({"approval_id": approval_id}, {"_id": 0})
+    if not approval:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    
+    if approval["approver_email"].lower() != user.email.lower():
+        raise HTTPException(status_code=403, detail="You are not authorized to approve this")
+    
+    if approval["status"] != "pending":
+        raise HTTPException(status_code=400, detail="This approval is not pending")
+    
+    # Save signature file
+    signature_dir = Path("/app/storage/signatures")
+    signature_dir.mkdir(parents=True, exist_ok=True)
+    
+    file_ext = signature.filename.split('.')[-1] if '.' in signature.filename else 'png'
+    signature_filename = f"sig_{user.email.replace('@', '_').replace('.', '_')}_{uuid.uuid4().hex[:8]}.{file_ext}"
+    signature_path = signature_dir / signature_filename
+    
+    content = await signature.read()
+    with open(signature_path, 'wb') as f:
+        f.write(content)
+    
+    # Get PO details
+    po_id = approval["po_id"]
+    po = await db.purchase_orders.find_one({"po_id": po_id}, {"_id": 0})
+    
+    # Generate signed PO PDF with signature
+    signed_pdf_path = await generate_signed_po_pdf(po, str(signature_path), user.email, approval["approval_order"])
+    
+    # Update approval with signature info
+    old_status = approval["status"]
+    await db.approvals.update_one(
+        {"approval_id": approval_id},
+        {"$set": {
+            "status": "approved",
+            "decision": "approved",
+            "signature_file": str(signature_path),
+            "signed_po_path": signed_pdf_path,
+            "comment": "Approved with digital signature",
+            "decided_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Audit log
+    await create_audit_log(
+        db, "approval", approval_id, "signed_approval", 
+        user.email, 
+        {"status": old_status}, 
+        {"status": "approved", "signature_file": str(signature_path)}
+    )
+    
+    # Handle next approval or completion
+    await process_approval_chain(db, approval, po, user)
+    
+    return {
+        "message": "PO approved with signature",
+        "po_id": po_id,
+        "signed_po_path": signed_pdf_path
+    }
+
+
+@procurement_router.post("/approvals/{approval_id}/upload-signed-po")
+async def upload_signed_po(
+    approval_id: str,
+    signed_po: UploadFile = File(...),
+    session_token: Optional[str] = Cookie(None)
+):
+    """
+    Director uploads the physically signed PO PDF.
+    """
+    from server import db, get_user_from_token
+    
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Verify approver
+    approval = await db.approvals.find_one({"approval_id": approval_id}, {"_id": 0})
+    if not approval:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    
+    if approval["approver_email"].lower() != user.email.lower():
+        raise HTTPException(status_code=403, detail="You are not authorized to approve this")
+    
+    if approval["status"] != "pending":
+        raise HTTPException(status_code=400, detail="This approval is not pending")
+    
+    # Save signed PO file
+    signed_po_dir = Path("/app/storage/signed_pos")
+    signed_po_dir.mkdir(parents=True, exist_ok=True)
+    
+    po_id = approval["po_id"]
+    po = await db.purchase_orders.find_one({"po_id": po_id}, {"_id": 0})
+    
+    file_ext = signed_po.filename.split('.')[-1] if '.' in signed_po.filename else 'pdf'
+    signed_filename = f"{po['po_number'].replace('/', '_')}_signed_by_{user.email.replace('@', '_').replace('.', '_')}.{file_ext}"
+    signed_path = signed_po_dir / signed_filename
+    
+    content = await signed_po.read()
+    with open(signed_path, 'wb') as f:
+        f.write(content)
+    
+    # Update approval
+    old_status = approval["status"]
+    await db.approvals.update_one(
+        {"approval_id": approval_id},
+        {"$set": {
+            "status": "approved",
+            "decision": "approved",
+            "signed_po_path": str(signed_path),
+            "comment": "Approved with uploaded signed PO",
+            "decided_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Audit log
+    await create_audit_log(
+        db, "approval", approval_id, "uploaded_signed_po", 
+        user.email, 
+        {"status": old_status}, 
+        {"status": "approved", "signed_po_path": str(signed_path)}
+    )
+    
+    # Handle next approval or completion
+    await process_approval_chain(db, approval, po, user)
+    
+    return {
+        "message": "Signed PO uploaded and approved",
+        "po_id": po_id,
+        "signed_po_path": str(signed_path)
+    }
+
+
+@procurement_router.post("/approvals/{approval_id}/reject")
+async def reject_approval(
+    approval_id: str,
+    reason: str = Form(...),
+    session_token: Optional[str] = Cookie(None)
+):
+    """Director rejects the PO with reason"""
+    from server import db, get_user_from_token
+    
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    approval = await db.approvals.find_one({"approval_id": approval_id}, {"_id": 0})
+    if not approval:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    
+    if approval["approver_email"].lower() != user.email.lower():
+        raise HTTPException(status_code=403, detail="You are not authorized")
+    
+    if approval["status"] != "pending":
+        raise HTTPException(status_code=400, detail="This approval is not pending")
+    
+    po_id = approval["po_id"]
+    po = await db.purchase_orders.find_one({"po_id": po_id}, {"_id": 0})
+    
+    # Update approval as rejected
+    await db.approvals.update_one(
+        {"approval_id": approval_id},
+        {"$set": {
+            "status": "rejected",
+            "decision": "rejected",
+            "comment": reason,
+            "decided_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    # Reject entire PO
+    await db.purchase_orders.update_one(
+        {"po_id": po_id},
+        {"$set": {
+            "status": "rejected",
+            "approval_status": "rejected",
+            "rejected_at": datetime.now(timezone.utc).isoformat(),
+            "rejection_reason": reason,
+            "rejected_by": user.email
+        }}
+    )
+    
+    # Notify CA
+    await create_notification(
+        db,
+        CA_EMAIL,
+        "PO Rejected",
+        f"PO {po['po_number']} was rejected by {user.name or user.email}. Reason: {reason}",
+        "po_rejected",
+        {"type": "po", "id": po_id}
+    )
+    
+    await create_audit_log(db, "purchase_order", po_id, "rejected", user.email, 
+                          {"status": "pending_approval"}, {"status": "rejected", "reason": reason})
+    
+    return {"message": "PO rejected", "po_id": po_id}
+
+
+@procurement_router.get("/approvals/{approval_id}/download-po")
+async def download_po_for_signing(
+    approval_id: str,
+    session_token: Optional[str] = Cookie(None)
+):
+    """Director downloads the PO PDF to sign"""
+    from server import db, get_user_from_token
+    
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    approval = await db.approvals.find_one({"approval_id": approval_id}, {"_id": 0})
+    if not approval:
+        raise HTTPException(status_code=404, detail="Approval not found")
+    
+    if approval["approver_email"].lower() != user.email.lower() and user.role != "Admin":
+        raise HTTPException(status_code=403, detail="You are not authorized to access this")
+    
+    po = await db.purchase_orders.find_one({"po_id": approval["po_id"]}, {"_id": 0})
+    if not po:
+        raise HTTPException(status_code=404, detail="PO not found")
+    
+    # Check if previous approvers have signed - include their signatures
+    previous_approvals = await db.approvals.find({
+        "po_id": approval["po_id"],
+        "approval_order": {"$lt": approval["approval_order"]},
+        "status": "approved"
+    }, {"_id": 0}).to_list(10)
+    
+    # Generate PDF with previous signatures if any
+    pdf_bytes = generate_po_pdf_with_signatures(po, previous_approvals, approval["approval_order"])
+    if not pdf_bytes:
+        raise HTTPException(status_code=500, detail="PDF generation not available")
+    
+    return StreamingResponse(
+        io.BytesIO(pdf_bytes),
+        media_type="application/pdf",
+        headers={"Content-Disposition": f"attachment; filename={po['po_number'].replace('/', '_')}_for_signing.pdf"}
+    )
+
+
+async def process_approval_chain(db, approval, po, user):
+    """Process the approval chain after a director signs"""
+    po_id = approval["po_id"]
+    
+    # Check if there are more approvers
+    next_approval = await db.approvals.find_one({
+        "po_id": po_id,
+        "status": "waiting",
+        "approval_order": approval["approval_order"] + 1
+    })
+    
+    if next_approval:
+        # Activate next approver
+        await db.approvals.update_one(
+            {"approval_id": next_approval["approval_id"]},
+            {"$set": {"status": "pending"}}
+        )
+        
+        # Notify next approver
+        await create_notification(
+            db,
+            next_approval["approver_email"],
+            "PO Pending Your Signature",
+            f"PO {po['po_number']} for ₹{po['total_amount']:,.2f} requires your signature. Please download, sign, and upload.",
+            "approval_pending",
+            {"type": "po", "id": po_id}
+        )
+    else:
+        # All approved - update PO status
+        await db.purchase_orders.update_one(
+            {"po_id": po_id},
+            {"$set": {
+                "status": "approved",
+                "approval_status": "approved",
+                "approved_at": datetime.now(timezone.utc).isoformat(),
+                "fully_signed": True
+            }}
+        )
+        
+        # Notify CA
+        await create_notification(
+            db,
+            CA_EMAIL,
+            "PO Fully Signed & Approved",
+            f"PO {po['po_number']} has been signed by all required directors and is now approved.",
+            "po_approved",
+            {"type": "po", "id": po_id}
+        )
+        
+        await create_audit_log(db, "purchase_order", po_id, "fully_approved", user.email, 
+                              {"status": "pending_approval"}, {"status": "approved"})
+
+
+def generate_po_pdf_with_signatures(po: dict, previous_approvals: list, current_order: int) -> bytes:
+    """Generate PO PDF with signature placeholders and previous signatures"""
+    if not PDF_AVAILABLE:
+        return None
+    
+    buffer = io.BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=A4, topMargin=20*mm, bottomMargin=20*mm, leftMargin=15*mm, rightMargin=15*mm)
+    styles = getSampleStyleSheet()
+    
+    # Custom styles
+    title_style = ParagraphStyle('Title', parent=styles['Heading1'], fontSize=16, alignment=1, spaceAfter=10)
+    header_style = ParagraphStyle('Header', parent=styles['Normal'], fontSize=10, alignment=1)
+    normal_style = ParagraphStyle('Normal', parent=styles['Normal'], fontSize=9)
+    
+    elements = []
+    
+    # Company Header
+    elements.append(Paragraph("<b>NUCLEOVIR THERAPEUTICS PVT. LTD.</b>", title_style))
+    elements.append(Paragraph("Plot No. 123, MIDC Industrial Area, Pune - 411057", header_style))
+    elements.append(Paragraph("GST: 27AABCN1234M1ZP | CIN: U74999MH2020PTC123456", header_style))
+    elements.append(Spacer(1, 10*mm))
+    
+    # PO Title
+    elements.append(Paragraph(f"<b>PURCHASE ORDER: {po['po_number']}</b>", title_style))
+    elements.append(Spacer(1, 5*mm))
+    
+    # PO Details Table
+    po_info = [
+        ["PO Number:", po['po_number'], "PO Date:", po.get('created_at', '')[:10]],
+        ["Vendor:", po.get('vendor_name', ''), "Category:", po.get('category', '')],
+        ["Department:", po.get('department', ''), "Delivery Date:", po.get('delivery_date', '')],
+    ]
+    
+    info_table = Table(po_info, colWidths=[80, 150, 80, 150])
+    info_table.setStyle(TableStyle([
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
+        ('FONTNAME', (2, 0), (2, -1), 'Helvetica-Bold'),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 5),
+    ]))
+    elements.append(info_table)
+    elements.append(Spacer(1, 8*mm))
+    
+    # Items Table
+    items_header = ["S.No", "Description", "Qty", "Unit Price", "Amount"]
+    items_data = [items_header]
+    
+    for i, item in enumerate(po.get('items', []), 1):
+        items_data.append([
+            str(i),
+            item.get('description', ''),
+            str(item.get('quantity', '')),
+            f"₹{item.get('unit_price', 0):,.2f}",
+            f"₹{item.get('amount', 0):,.2f}"
+        ])
+    
+    # Totals
+    items_data.append(["", "", "", "Subtotal:", f"₹{po.get('subtotal', 0):,.2f}"])
+    items_data.append(["", "", "", f"GST ({po.get('gst_pct', 18)}%):", f"₹{po.get('gst_amount', 0):,.2f}"])
+    items_data.append(["", "", "", "Total:", f"₹{po.get('total_amount', 0):,.2f}"])
+    
+    items_table = Table(items_data, colWidths=[30, 200, 50, 80, 100])
+    items_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#215F9A')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.white),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('ALIGN', (2, 0), (-1, -1), 'RIGHT'),
+        ('GRID', (0, 0), (-1, -4), 0.5, colors.grey),
+        ('FONTNAME', (3, -3), (3, -1), 'Helvetica-Bold'),
+    ]))
+    elements.append(items_table)
+    elements.append(Spacer(1, 10*mm))
+    
+    # Terms
+    elements.append(Paragraph("<b>Terms & Conditions:</b>", normal_style))
+    elements.append(Paragraph(f"Payment Terms: {po.get('payment_terms', 'As per agreement')}", normal_style))
+    elements.append(Spacer(1, 10*mm))
+    
+    # Signature Section
+    elements.append(Paragraph("<b>APPROVAL SIGNATURES:</b>", title_style))
+    elements.append(Spacer(1, 5*mm))
+    
+    # Create signature boxes
+    sig_data = []
+    directors = ["yogesh.ostwal@nucleovir.com", "sunil.k@nucleovir.com", "ayush@nucleovir.com"]
+    director_names = ["Yogesh Ostwal", "Sunil K", "Ayush"]
+    
+    # Determine how many signatures are needed
+    total_amount = po.get('total_amount', 0)
+    num_required = 1 if total_amount <= 50000 else 3
+    
+    for i in range(num_required):
+        director_email = directors[i]
+        director_name = director_names[i]
+        
+        # Check if this director has already signed
+        signed = False
+        sig_path = None
+        for appr in previous_approvals:
+            if appr.get('approver_email', '').lower() == director_email.lower():
+                signed = True
+                sig_path = appr.get('signature_file') or appr.get('signed_po_path')
+                break
+        
+        if signed and sig_path and os.path.exists(sig_path):
+            # Add actual signature
+            sig_data.append([f"Director {i+1}: {director_name}", "SIGNED ✓"])
+        elif i + 1 == current_order:
+            # Current approver's slot
+            sig_data.append([f"Director {i+1}: {director_name}", "[ YOUR SIGNATURE HERE ]"])
+        else:
+            # Pending
+            sig_data.append([f"Director {i+1}: {director_name}", "[ Pending ]"])
+    
+    sig_table = Table(sig_data, colWidths=[200, 200])
+    sig_table.setStyle(TableStyle([
+        ('FONTSIZE', (0, 0), (-1, -1), 10),
+        ('ALIGN', (1, 0), (1, -1), 'CENTER'),
+        ('BOX', (1, 0), (1, -1), 1, colors.grey),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 20),
+        ('TOPPADDING', (0, 0), (-1, -1), 10),
+    ]))
+    elements.append(sig_table)
+    
+    # Footer
+    elements.append(Spacer(1, 10*mm))
+    elements.append(Paragraph("This is a system-generated document. Digital signatures are legally binding.", 
+                             ParagraphStyle('Footer', fontSize=8, alignment=1, textColor=colors.grey)))
+    
+    doc.build(elements)
+    return buffer.getvalue()
+
+
+async def generate_signed_po_pdf(po: dict, signature_path: str, signer_email: str, approval_order: int) -> str:
+    """Generate PDF with signature applied and save to storage"""
+    from server import db
+    
+    # Get all previous approvals
+    previous_approvals = await db.approvals.find({
+        "po_id": po["po_id"],
+        "approval_order": {"$lt": approval_order},
+        "status": "approved"
+    }, {"_id": 0}).to_list(10)
+    
+    # Add current signer
+    previous_approvals.append({
+        "approver_email": signer_email,
+        "signature_file": signature_path,
+        "status": "approved"
+    })
+    
+    # Generate PDF
+    pdf_bytes = generate_po_pdf_with_signatures(po, previous_approvals, approval_order + 1)
+    
+    # Save to storage
+    signed_dir = Path("/app/storage/signed_pos")
+    signed_dir.mkdir(parents=True, exist_ok=True)
+    
+    filename = f"{po['po_number'].replace('/', '_')}_signed_{approval_order}.pdf"
+    filepath = signed_dir / filename
+    
+    with open(filepath, 'wb') as f:
+        f.write(pdf_bytes)
+    
+    return str(filepath)
+
 # ==================== GRN ENDPOINTS ====================
 
 @procurement_router.post("/grn")
