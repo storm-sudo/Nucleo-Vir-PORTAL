@@ -1409,15 +1409,26 @@ async def delete_announcement(announcement_id: str, session_token: Optional[str]
 # ==================== NOTIFICATIONS ====================
 
 @api_router.get("/notifications")
-async def get_notifications(session_token: Optional[str] = Cookie(None)):
-    """Get notifications for current user"""
+async def get_notifications(
+    unread_only: bool = False,
+    session_token: Optional[str] = Cookie(None)
+):
+    """Get notifications for current user - includes procurement and general notifications"""
     user = await get_user_from_token(session_token)
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     notifications = []
     
-    # Get announcements
+    # 1. Get user-specific notifications from notifications collection (procurement approvals, etc.)
+    notif_query = {"user_email": user.email.lower()}
+    if unread_only:
+        notif_query["read"] = False
+    
+    user_notifications = await db.notifications.find(notif_query, {"_id": 0}).sort([("created_at", -1)]).limit(20).to_list(20)
+    notifications.extend(user_notifications)
+    
+    # 2. Get announcements (for everyone)
     announcements = await db.announcements.find({}, {"_id": 0}).sort([("created_at", -1)]).limit(5).to_list(5)
     for ann in announcements:
         notifications.append({
@@ -1425,10 +1436,12 @@ async def get_notifications(session_token: Optional[str] = Cookie(None)):
             "title": ann['title'],
             "message": ann['message'],
             "announcement_type": ann.get('type', 'General'),
-            "created_at": ann['created_at']
+            "created_at": ann['created_at'],
+            "read": True  # Announcements don't have read state
         })
     
-    # If admin, add pending requests
+    # 3. Role-specific notifications
+    # For Admin/HR/Accountant - pending requests
     if user.role in ['Admin', 'HR', 'Accountant']:
         pending_leaves = await db.leave_requests.count_documents({"status": "Pending"})
         if pending_leaves > 0:
@@ -1437,7 +1450,8 @@ async def get_notifications(session_token: Optional[str] = Cookie(None)):
                 "title": "Pending Leave Requests",
                 "message": f"{pending_leaves} leave request(s) pending approval",
                 "count": pending_leaves,
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "read": True
             })
         
         pending_inventory = await db.inventory_requests.count_documents({"status": "Pending"})
@@ -1447,7 +1461,8 @@ async def get_notifications(session_token: Optional[str] = Cookie(None)):
                 "title": "Pending Inventory Requests",
                 "message": f"{pending_inventory} inventory request(s) pending approval",
                 "count": pending_inventory,
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "read": True
             })
         
         if user.role in ['Admin', 'Accountant']:
@@ -1458,7 +1473,8 @@ async def get_notifications(session_token: Optional[str] = Cookie(None)):
                     "title": "Pending Payment Requests",
                     "message": f"{pending_payments} payment request(s) pending approval",
                     "count": pending_payments,
-                    "created_at": datetime.now(timezone.utc).isoformat()
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                    "read": True
                 })
         
         # Low stock alerts
@@ -1474,10 +1490,76 @@ async def get_notifications(session_token: Optional[str] = Cookie(None)):
                 "title": "Low Stock Alert",
                 "message": f"{len(low_stock_items)} item(s) running low: {', '.join(low_stock_items[:3])}{'...' if len(low_stock_items) > 3 else ''}",
                 "count": len(low_stock_items),
-                "created_at": datetime.now(timezone.utc).isoformat()
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "read": True
             })
     
+    # 4. For Directors - pending procurement approvals
+    if user.role == 'Director' or user.email.lower() in ['yogesh.ostwal@nucleovir.com', 'sunil.k@nucleovir.com', 'ayush@nucleovir.com']:
+        pending_approvals = await db.approvals.count_documents({
+            "approver_email": user.email.lower(),
+            "status": "pending"
+        })
+        if pending_approvals > 0:
+            notifications.append({
+                "notification_id": f"pending_approvals_{user.email}",
+                "type": "approval_pending",
+                "title": "Pending PO Approvals",
+                "message": f"You have {pending_approvals} PO(s) waiting for your approval",
+                "count": pending_approvals,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "read": False,
+                "related_entity": {"type": "procurement"}
+            })
+    
+    # 5. For CA - notify about PO status changes
+    if user.role == 'CA' or user.email.lower() == 'nikita@nucleovir.com':
+        # Check for recently approved/rejected POs
+        pending_grn = await db.purchase_orders.count_documents({
+            "status": "approved",
+            "archived": {"$ne": True}
+        })
+        existing_grns = await db.grn.distinct("po_id")
+        pos_needing_grn = await db.purchase_orders.count_documents({
+            "status": "approved",
+            "po_id": {"$nin": existing_grns},
+            "archived": {"$ne": True}
+        })
+        if pos_needing_grn > 0:
+            notifications.append({
+                "notification_id": f"pos_needing_grn_{user.email}",
+                "type": "action_required",
+                "title": "POs Ready for GRN",
+                "message": f"{pos_needing_grn} approved PO(s) need GRN creation",
+                "count": pos_needing_grn,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "read": False,
+                "related_entity": {"type": "grn"}
+            })
+    
+    # Sort all by created_at descending
+    notifications.sort(key=lambda x: x.get('created_at', ''), reverse=True)
+    
+    # Filter unread only if requested
+    if unread_only:
+        notifications = [n for n in notifications if not n.get('read', True)]
+    
     return notifications
+
+
+@api_router.post("/notifications/{notification_id}/read")
+async def mark_notification_read(notification_id: str, session_token: Optional[str] = Cookie(None)):
+    """Mark a notification as read"""
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    await db.notifications.update_one(
+        {"notification_id": notification_id, "user_email": user.email.lower()},
+        {"$set": {"read": True}}
+    )
+    
+    return {"message": "Notification marked as read"}
 
 # ==================== DASHBOARD STATS ====================
 

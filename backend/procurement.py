@@ -589,26 +589,9 @@ async def generate_po(data: POGenerate, session_token: Optional[str] = Cookie(No
     
     amount = quotation.get("total_amount", 0)
     
-    # Check 3-quotes rule for ₹50,001-₹2,00,000
-    if THRESHOLDS["single_director"] < amount <= THRESHOLDS["single_director_3quotes"]:
-        # Check if there are 3 quotations for same vendor/category
-        related_quotations = await db.quotations.count_documents({
-            "vendor_name": quotation["vendor_name"],
-            "category": quotation["category"],
-            "status": "confirmed",
-            "archived": {"$ne": True}
-        })
-        
-        if related_quotations < 3:
-            raise HTTPException(
-                status_code=400,
-                detail=f"3 quotations required for amounts ₹50,001-₹2,00,000. Currently have {related_quotations} quotations."
-            )
-    
-    # Check board resolution for > ₹10,00,000
-    if amount > THRESHOLDS["all_directors"]:
-        # Board resolution will be required during approval
-        pass
+    # Simplified approval rules:
+    # - ≤ ₹50,000: Single director (Yogesh)
+    # - > ₹50,000: All 3 directors must approve
     
     # Get next PO number
     counter = await db.counters.find_one_and_update(
