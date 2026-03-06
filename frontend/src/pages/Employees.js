@@ -121,8 +121,8 @@ export default function Employees() {
     }
   };
 
-  const canManage = user && ['Admin', 'HR'].includes(user.role);
-  const canDelete = user && user.role === 'Admin';
+  const canManage = user && ['Admin', 'HR', 'SuperAdmin'].includes(user.role);
+  const canDelete = user && ['Admin', 'SuperAdmin'].includes(user.role);
 
   return (
     <div data-testid="employees-page" className="space-y-6">

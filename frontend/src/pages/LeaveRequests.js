@@ -76,7 +76,7 @@ export default function LeaveRequests() {
     }
   };
 
-  const canApprove = user && ['Admin', 'HR'].includes(user.role);
+  const canApprove = user && ['Admin', 'HR', 'SuperAdmin'].includes(user.role);
 
   return (
     <div data-testid="leave-requests-page" className="space-y-6">

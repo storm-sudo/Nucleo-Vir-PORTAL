@@ -24,7 +24,7 @@ export default function Chat() {
 
   useEffect(() => {
     fetchGroups();
-    if (user && user.role === 'Admin') {
+    if (user && ['Admin', 'SuperAdmin'].includes(user.role)) {
       fetchEmployees();
     }
   }, [user]);
@@ -146,7 +146,7 @@ export default function Chat() {
     });
   };
 
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = ['Admin', 'SuperAdmin'].includes(user?.role);
   const currentGroupData = groups.find(g => g.group_id === selectedGroup);
 
   return (

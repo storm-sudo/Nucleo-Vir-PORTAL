@@ -22,7 +22,7 @@ export default function Attendance() {
   const [uploading, setUploading] = useState(false);
   const fileInputRef = useRef(null);
 
-  useEffect(() => { fetchAttendance(); fetchLeaveBalance(); if (user && user.role === 'Admin') fetchEmployees(); }, [user]);
+  useEffect(() => { fetchAttendance(); fetchLeaveBalance(); if (user && ['Admin', 'SuperAdmin'].includes(user.role)) fetchEmployees(); }, [user]);
   useEffect(() => { if (searchMonth || selectedEmployeeId) fetchStatistics(); }, [searchMonth, selectedEmployeeId]);
 
   const fetchAttendance = async () => {
@@ -36,7 +36,7 @@ export default function Attendance() {
   const fetchLeaveBalance = async () => {
     try {
       const params = new URLSearchParams();
-      if (selectedEmployeeId && selectedEmployeeId !== 'self' && user?.role === 'Admin') params.append('user_id', selectedEmployeeId);
+      if (selectedEmployeeId && selectedEmployeeId !== 'self' && ['Admin', 'SuperAdmin'].includes(user?.role)) params.append('user_id', selectedEmployeeId);
       const response = await fetch(`${BACKEND_URL}/api/leave-balance?${params}`, { credentials: 'include' });
       setLeaveBalance(await response.json());
     } catch (error) { console.error('Error:', error); }
@@ -46,7 +46,7 @@ export default function Attendance() {
   const fetchStatistics = async () => {
     try {
       const params = new URLSearchParams();
-      if (selectedEmployeeId && selectedEmployeeId !== 'self' && user.role === 'Admin') params.append('user_id', selectedEmployeeId);
+      if (selectedEmployeeId && selectedEmployeeId !== 'self' && ['Admin', 'SuperAdmin'].includes(user.role)) params.append('user_id', selectedEmployeeId);
       if (searchMonth) params.append('month', searchMonth);
       const response = await fetch(`${BACKEND_URL}/api/attendance/statistics?${params}`, { credentials: 'include' });
       setStatistics(await response.json());
@@ -57,7 +57,7 @@ export default function Attendance() {
     if (!startDate && !endDate && !searchMonth) { fetchAttendance(); return; }
     try {
       const params = new URLSearchParams();
-      if (selectedEmployeeId && selectedEmployeeId !== 'self' && user.role === 'Admin') params.append('user_id', selectedEmployeeId);
+      if (selectedEmployeeId && selectedEmployeeId !== 'self' && ['Admin', 'SuperAdmin'].includes(user.role)) params.append('user_id', selectedEmployeeId);
       if (startDate) params.append('start_date', startDate); if (endDate) params.append('end_date', endDate);
       const response = await fetch(`${BACKEND_URL}/api/attendance/search?${params}`, { credentials: 'include' });
       setAttendance(await response.json());
@@ -97,7 +97,7 @@ export default function Attendance() {
     finally { setUploading(false); if (fileInputRef.current) fileInputRef.current.value = ''; }
   };
 
-  const isAdmin = user && user.role === 'Admin';
+  const isAdmin = user && ['Admin', 'SuperAdmin'].includes(user.role);
 
   return (
     <div data-testid="attendance-page" className="space-y-6">

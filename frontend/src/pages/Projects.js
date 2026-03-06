@@ -101,7 +101,7 @@ export default function Projects() {
   };
 
   const columns = ['Todo', 'In Progress', 'Done'];
-  const canDelete = user && user.role === 'Admin';
+  const canDelete = user && ['Admin', 'SuperAdmin'].includes(user.role);
 
   return (
     <div data-testid="projects-page" className="space-y-6">

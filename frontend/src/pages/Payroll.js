@@ -25,7 +25,7 @@ export default function Payroll() {
 
   useEffect(() => {
     fetchPayroll();
-    if (user && ['Admin', 'HR', 'Accountant'].includes(user.role)) {
+    if (user && ['Admin', 'HR', 'Accountant', 'SuperAdmin'].includes(user.role)) {
       fetchEmployees();
     }
   }, [user]);
@@ -92,7 +92,7 @@ export default function Payroll() {
     return basic - deductions + bonuses;
   };
 
-  const canManage = user && ['Admin', 'HR', 'Accountant'].includes(user.role);
+  const canManage = user && ['Admin', 'HR', 'Accountant', 'SuperAdmin'].includes(user.role);
 
   return (
     <div data-testid="payroll-page" className="space-y-6">

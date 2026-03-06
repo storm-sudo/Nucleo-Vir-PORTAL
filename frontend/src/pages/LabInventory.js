@@ -140,7 +140,7 @@ export default function LabInventory() {
     }
   };
 
-  const canManage = user && ['Admin', 'HR'].includes(user.role);
+  const canManage = user && ['Admin', 'HR', 'SuperAdmin'].includes(user.role);
 
   return (
     <div data-testid="lab-inventory-page" className="space-y-6">

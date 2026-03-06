@@ -17,7 +17,7 @@ export default function PaymentRequests() {
   const [formData, setFormData] = useState({ amount: '', description: '' });
 
   useEffect(() => {
-    if (user && ['Admin', 'Accountant', 'CA'].includes(user.role)) {
+    if (user && ['Admin', 'Accountant', 'CA', 'SuperAdmin'].includes(user.role)) {
       fetchRequests();
     }
   }, [user]);
@@ -75,8 +75,8 @@ export default function PaymentRequests() {
     }
   };
 
-  const canCreate = user?.role === 'CA';
-  const canApprove = user && ['Admin', 'Accountant'].includes(user.role);
+  const canCreate = ['CA', 'SuperAdmin'].includes(user?.role);
+  const canApprove = user && ['Admin', 'Accountant', 'SuperAdmin'].includes(user.role);
 
   return (
     <div data-testid="payment-requests-page" className="space-y-6">

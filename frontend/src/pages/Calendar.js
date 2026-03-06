@@ -53,7 +53,7 @@ export default function Calendar() {
     }
   };
 
-  const isAdmin = user?.role === 'Admin';
+  const isAdmin = ['Admin', 'SuperAdmin'].includes(user?.role);
 
   return (
     <div data-testid="calendar-page" className="space-y-6">

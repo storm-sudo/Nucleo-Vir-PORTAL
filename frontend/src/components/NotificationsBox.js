@@ -56,7 +56,7 @@ export default function NotificationsBox({ user }) {
     return 'bg-gray-50 dark:bg-slate-700/50 border-gray-200 dark:border-slate-600';
   };
 
-  const isAdmin = user && user.role === 'Admin';
+  const isAdmin = user && ['Admin', 'SuperAdmin'].includes(user.role);
 
   return (
     <Card className="bg-white dark:bg-slate-800 border-gray-200 dark:border-slate-700">

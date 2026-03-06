@@ -32,7 +32,7 @@ export default function WorkAssignments() {
   const [newColumnName, setNewColumnName] = useState('');
   const [formData, setFormData] = useState({ title: '', description: '', assigned_to: '', due_date: '', priority: 'Medium', status: 'Backlog' });
 
-  useEffect(() => { fetchTasks(); fetchColumns(); if (user && user.role === 'Admin') fetchEmployees(); }, [user]);
+  useEffect(() => { fetchTasks(); fetchColumns(); if (user && ['Admin', 'SuperAdmin'].includes(user.role)) fetchEmployees(); }, [user]);
 
   const fetchTasks = async () => {
     try {
@@ -92,7 +92,7 @@ export default function WorkAssignments() {
     } catch (error) { toast.error('Failed'); }
   };
 
-  const isAdmin = user && user.role === 'Admin';
+  const isAdmin = user && ['Admin', 'SuperAdmin'].includes(user.role);
 
   return (
     <div data-testid="work-assignments-page" className="space-y-6">

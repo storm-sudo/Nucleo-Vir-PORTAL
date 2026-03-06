@@ -130,7 +130,7 @@ export default function StationaryInventory() {
     }
   };
 
-  const isAdmin = user && user.role === 'Admin';
+  const isAdmin = user && ['Admin', 'SuperAdmin'].includes(user.role);
   const lowStockItems = items.filter(item => item.quantity <= item.min_stock_level);
 
   return (

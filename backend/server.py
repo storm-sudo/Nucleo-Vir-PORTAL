@@ -501,7 +501,7 @@ async def submit_contact_form(form: ContactForm):
 async def create_employee(employee_data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Create new employee (Admin/HR only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role not in ['Admin', 'HR']:
+    if not user or user.role not in ['Admin', 'HR', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Access denied")
     
     employee_id = f"EMP{datetime.now().year}{str(uuid.uuid4().hex[:6]).upper()}"
@@ -566,7 +566,7 @@ async def get_employee(employee_id: str, session_token: Optional[str] = Cookie(N
 async def update_employee(employee_id: str, employee_data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Update employee (Admin/HR only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role not in ['Admin', 'HR']:
+    if not user or user.role not in ['Admin', 'HR', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Access denied")
     
     result = await db.employees.update_one(
@@ -583,7 +583,7 @@ async def update_employee(employee_id: str, employee_data: Dict[str, Any], sessi
 async def delete_employee(employee_id: str, session_token: Optional[str] = Cookie(None)):
     """Delete employee (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can delete employees")
     
     result = await db.employees.delete_one({"employee_id": employee_id})
@@ -630,7 +630,7 @@ async def get_attendance_heatmap(session_token: Optional[str] = Cookie(None)):
 async def export_attendance(session_token: Optional[str] = Cookie(None)):
     """Export attendance data as CSV (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can export attendance data")
     
     # Get all attendance records
@@ -697,7 +697,7 @@ async def get_attendance_statistics(
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     # If user_id provided, only admin can view other users
-    target_user_id = user_id if user_id and user.role == 'Admin' else user.user_id
+    target_user_id = user_id if user_id and user.role in ['Admin', 'SuperAdmin'] else user.user_id
     
     # Build query
     query = {"user_id": target_user_id}
@@ -759,7 +759,7 @@ async def search_attendance(
         raise HTTPException(status_code=401, detail="Not authenticated")
     
     # If user_id provided, only admin can view other users
-    target_user_id = user_id if user_id and user.role == 'Admin' else user.user_id
+    target_user_id = user_id if user_id and user.role in ['Admin', 'SuperAdmin'] else user.user_id
     
     query = {"user_id": target_user_id}
     
@@ -802,7 +802,7 @@ async def get_leave_requests(session_token: Optional[str] = Cookie(None)):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role in ['Admin', 'HR']:
+    if user.role in ['Admin', 'HR', 'SuperAdmin']:
         requests = await db.leave_requests.find({}, {"_id": 0}).to_list(1000)
     else:
         requests = await db.leave_requests.find({"user_id": user.user_id}, {"_id": 0}).to_list(1000)
@@ -813,7 +813,7 @@ async def get_leave_requests(session_token: Optional[str] = Cookie(None)):
 async def update_leave_request(leave_id: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Approve/reject leave request"""
     user = await get_user_from_token(session_token)
-    if not user or user.role not in ['Admin', 'HR']:
+    if not user or user.role not in ['Admin', 'HR', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Access denied")
     
     await db.leave_requests.update_one(
@@ -829,7 +829,7 @@ async def update_leave_request(leave_id: str, data: Dict[str, Any], session_toke
 async def create_payroll(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Create payroll record (Admin/HR only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role not in ['Admin', 'HR']:
+    if not user or user.role not in ['Admin', 'HR', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Access denied")
     
     net_salary = data['basic_salary'] - data.get('deductions', 0) + data.get('bonuses', 0)
@@ -855,7 +855,7 @@ async def get_payroll(session_token: Optional[str] = Cookie(None)):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role in ['Admin', 'HR', 'Accountant']:
+    if user.role in ['Admin', 'HR', 'Accountant', 'SuperAdmin']:
         records = await db.payroll.find({}, {"_id": 0}).to_list(1000)
     else:
         # Get employee_id from email match
@@ -873,7 +873,7 @@ async def get_payroll(session_token: Optional[str] = Cookie(None)):
 async def create_payment_request(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Create payment request (CA only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'CA':
+    if not user or user.role not in ['CA', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only CA can create payment requests")
     
     payment_doc = {
@@ -913,7 +913,7 @@ async def get_payment_requests(session_token: Optional[str] = Cookie(None)):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role in ['Admin', 'Accountant']:
+    if user.role in ['Admin', 'Accountant', 'SuperAdmin']:
         requests = await db.payment_requests.find({}, {"_id": 0}).to_list(1000)
     elif user.role == 'CA':
         requests = await db.payment_requests.find({"ca_user_id": user.user_id}, {"_id": 0}).to_list(1000)
@@ -926,7 +926,7 @@ async def get_payment_requests(session_token: Optional[str] = Cookie(None)):
 async def update_payment_request(payment_id: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Update payment request status"""
     user = await get_user_from_token(session_token)
-    if not user or user.role not in ['Admin', 'Accountant']:
+    if not user or user.role not in ['Admin', 'Accountant', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Access denied")
     
     await db.payment_requests.update_one(
@@ -982,7 +982,7 @@ async def update_project(project_id: str, data: Dict[str, Any], session_token: O
 async def delete_project(project_id: str, session_token: Optional[str] = Cookie(None)):
     """Delete project (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can delete projects")
     
     result = await db.projects.delete_one({"project_id": project_id})
@@ -1041,7 +1041,7 @@ async def delete_notebook_entry(entry_id: str, session_token: Optional[str] = Co
     if not entry:
         raise HTTPException(status_code=404, detail="Entry not found")
     
-    if user.role != 'Admin' and entry['user_id'] != user.user_id:
+    if user.role not in ['Admin', 'SuperAdmin'] and entry['user_id'] != user.user_id:
         raise HTTPException(status_code=403, detail="Only admins or entry owners can delete entries")
     
     await db.lab_notebook.delete_one({"entry_id": entry_id})
@@ -1053,7 +1053,7 @@ async def delete_notebook_entry(entry_id: str, session_token: Optional[str] = Co
 async def create_inventory_item(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Add inventory item (Admin/HR only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role not in ['Admin', 'HR']:
+    if not user or user.role not in ['Admin', 'HR', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Access denied")
     
     item_doc = {
@@ -1083,7 +1083,7 @@ async def get_inventory(session_token: Optional[str] = Cookie(None)):
 async def delete_inventory_item(item_id: str, session_token: Optional[str] = Cookie(None)):
     """Delete inventory item (Admin/HR only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role not in ['Admin', 'HR']:
+    if not user or user.role not in ['Admin', 'HR', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins/HR can delete inventory items")
     
     result = await db.inventory.delete_one({"item_id": item_id})
@@ -1120,7 +1120,7 @@ async def get_inventory_requests(session_token: Optional[str] = Cookie(None)):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role in ['Admin', 'HR']:
+    if user.role in ['Admin', 'HR', 'SuperAdmin']:
         requests = await db.inventory_requests.find({}, {"_id": 0}).to_list(1000)
     else:
         requests = await db.inventory_requests.find({"user_id": user.user_id}, {"_id": 0}).to_list(1000)
@@ -1131,7 +1131,7 @@ async def get_inventory_requests(session_token: Optional[str] = Cookie(None)):
 async def update_inventory_request(request_id: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Approve/reject inventory request"""
     user = await get_user_from_token(session_token)
-    if not user or user.role not in ['Admin', 'HR']:
+    if not user or user.role not in ['Admin', 'HR', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Access denied")
     
     await db.inventory_requests.update_one(
@@ -1154,7 +1154,7 @@ async def delete_inventory_request(request_id: str, session_token: Optional[str]
         raise HTTPException(status_code=404, detail="Request not found")
     
     # Allow Admin/HR or the person who created the request to delete
-    if user.role not in ['Admin', 'HR'] and request['user_id'] != user.user_id:
+    if user.role not in ['Admin', 'HR', 'SuperAdmin'] and request['user_id'] != user.user_id:
         raise HTTPException(status_code=403, detail="You can only delete your own requests")
     
     result = await db.inventory_requests.delete_one({"request_id": request_id})
@@ -1202,7 +1202,7 @@ async def get_bookings(session_token: Optional[str] = Cookie(None)):
 async def create_chat_group(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Create chat group (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can create groups")
     
     group_doc = {
@@ -1230,7 +1230,7 @@ async def get_chat_groups(session_token: Optional[str] = Cookie(None)):
 async def delete_chat_group(group_id: str, session_token: Optional[str] = Cookie(None)):
     """Delete chat group (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can delete groups")
     
     await db.chat_groups.delete_one({"group_id": group_id})
@@ -1273,7 +1273,7 @@ async def get_messages(group_id: str, session_token: Optional[str] = Cookie(None
 async def create_event(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Create calendar event (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can create events")
     
     event_doc = {
@@ -1334,7 +1334,7 @@ async def get_tickets(session_token: Optional[str] = Cookie(None)):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role in ['Admin', 'HR']:
+    if user.role in ['Admin', 'HR', 'SuperAdmin']:
         tickets = await db.helpdesk_tickets.find({}, {"_id": 0}).to_list(1000)
     else:
         tickets = await db.helpdesk_tickets.find({"user_id": user.user_id}, {"_id": 0}).to_list(1000)
@@ -1345,7 +1345,7 @@ async def get_tickets(session_token: Optional[str] = Cookie(None)):
 async def update_ticket(ticket_id: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Update ticket status"""
     user = await get_user_from_token(session_token)
-    if not user or user.role not in ['Admin', 'HR']:
+    if not user or user.role not in ['Admin', 'HR', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Access denied")
     
     await db.helpdesk_tickets.update_one(
@@ -1361,7 +1361,7 @@ async def update_ticket(ticket_id: str, data: Dict[str, Any], session_token: Opt
 async def create_announcement(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Create announcement (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can create announcements")
     
     announcement_doc = {
@@ -1396,7 +1396,7 @@ async def get_announcements(session_token: Optional[str] = Cookie(None)):
 async def delete_announcement(announcement_id: str, session_token: Optional[str] = Cookie(None)):
     """Delete announcement (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can delete announcements")
     
     result = await db.announcements.delete_one({"announcement_id": announcement_id})
@@ -1442,7 +1442,7 @@ async def get_notifications(
     
     # 3. Role-specific notifications
     # For Admin/HR/Accountant - pending requests
-    if user.role in ['Admin', 'HR', 'Accountant']:
+    if user.role in ['Admin', 'HR', 'Accountant', 'SuperAdmin']:
         pending_leaves = await db.leave_requests.count_documents({"status": "Pending"})
         if pending_leaves > 0:
             notifications.append({
@@ -1465,7 +1465,7 @@ async def get_notifications(
                 "read": True
             })
         
-        if user.role in ['Admin', 'Accountant']:
+        if user.role in ['Admin', 'Accountant', 'SuperAdmin']:
             pending_payments = await db.payment_requests.count_documents({"status": "Pending"})
             if pending_payments > 0:
                 notifications.append({
@@ -1587,7 +1587,7 @@ async def get_dashboard_stats(session_token: Optional[str] = Cookie(None)):
 async def create_stationary_item(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Create stationary item (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can add stationary items")
     
     item_doc = {
@@ -1618,7 +1618,7 @@ async def get_stationary(session_token: Optional[str] = Cookie(None)):
 async def update_stationary_item(item_id: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Update stationary item (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can update stationary items")
     
     result = await db.stationary.update_one(
@@ -1635,7 +1635,7 @@ async def update_stationary_item(item_id: str, data: Dict[str, Any], session_tok
 async def delete_stationary_item(item_id: str, session_token: Optional[str] = Cookie(None)):
     """Delete stationary item (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can delete stationary items")
     
     result = await db.stationary.delete_one({"item_id": item_id})
@@ -1651,7 +1651,7 @@ async def delete_stationary_item(item_id: str, session_token: Optional[str] = Co
 async def create_task(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Create task (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can create tasks")
     
     task_doc = {
@@ -1676,7 +1676,7 @@ async def get_tasks(session_token: Optional[str] = Cookie(None)):
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    if user.role == 'Admin':
+    if user.role in ['Admin', 'SuperAdmin']:
         tasks = await db.tasks.find({}, {"_id": 0}).to_list(1000)
     else:
         tasks = await db.tasks.find({"assigned_to": user.user_id}, {"_id": 0}).to_list(1000)
@@ -1687,7 +1687,7 @@ async def get_tasks(session_token: Optional[str] = Cookie(None)):
 async def get_tasks_by_employee(employee_id: str, session_token: Optional[str] = Cookie(None)):
     """Get tasks for specific employee (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can view employee tasks")
     
     tasks = await db.tasks.find({"assigned_to": employee_id}, {"_id": 0}).to_list(1000)
@@ -1705,11 +1705,11 @@ async def update_task(task_id: str, data: Dict[str, Any], session_token: Optiona
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
     
-    if user.role != 'Admin' and task['assigned_to'] != user.user_id:
+    if user.role not in ['Admin', 'SuperAdmin'] and task['assigned_to'] != user.user_id:
         raise HTTPException(status_code=403, detail="Access denied")
     
     # If employee is updating, only allow status changes
-    if user.role != 'Admin':
+    if user.role not in ['Admin', 'SuperAdmin']:
         allowed_keys = {'status'}
         data = {k: v for k, v in data.items() if k in allowed_keys}
     
@@ -1724,7 +1724,7 @@ async def update_task(task_id: str, data: Dict[str, Any], session_token: Optiona
 async def delete_task(task_id: str, session_token: Optional[str] = Cookie(None)):
     """Delete task (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can delete tasks")
     
     result = await db.tasks.delete_one({"task_id": task_id})
@@ -1790,7 +1790,7 @@ async def get_leave_balance(user_id: Optional[str] = None, session_token: Option
     if not user:
         raise HTTPException(status_code=401, detail="Not authenticated")
     
-    target_user_id = user_id if user_id and user.role == 'Admin' else user.user_id
+    target_user_id = user_id if user_id and user.role in ['Admin', 'SuperAdmin'] else user.user_id
     
     # Get or create leave balance
     balance = await db.leave_balances.find_one({"user_id": target_user_id}, {"_id": 0})
@@ -1857,7 +1857,7 @@ async def get_leave_balance(user_id: Optional[str] = None, session_token: Option
 async def upload_attendance_csv(file: UploadFile = File(...), session_token: Optional[str] = Cookie(None)):
     """Upload biometric attendance CSV (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can upload attendance CSV")
     
     if not file.filename.endswith('.csv'):
@@ -2004,7 +2004,7 @@ async def get_kanban_columns(session_token: Optional[str] = Cookie(None)):
 async def create_kanban_column(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
     """Create kanban column (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can create columns")
     
     column_doc = {
@@ -2022,7 +2022,7 @@ async def create_kanban_column(data: Dict[str, Any], session_token: Optional[str
 async def delete_kanban_column(column_id: str, session_token: Optional[str] = Cookie(None)):
     """Delete kanban column (Admin only)"""
     user = await get_user_from_token(session_token)
-    if not user or user.role != 'Admin':
+    if not user or user.role not in ['Admin', 'SuperAdmin']:
         raise HTTPException(status_code=403, detail="Only admins can delete columns")
     
     # Check column count
