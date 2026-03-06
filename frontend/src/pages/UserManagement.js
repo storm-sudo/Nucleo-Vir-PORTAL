@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useAuth } from '@/context/AuthContext';
+import { useOutletContext } from 'react-router-dom';
 import { BACKEND_URL } from '@/config';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import {
 const PROCUREMENT_DIRECTORS = ['yogesh.ostwal@nucleovir.com', 'sunil.k@nucleovir.com'];
 
 export default function UserManagement() {
-  const { user } = useAuth();
+  const { user } = useOutletContext();
   const [users, setUsers] = useState([]);
   const [availableRoles, setAvailableRoles] = useState([]);
   const [loading, setLoading] = useState(true);
