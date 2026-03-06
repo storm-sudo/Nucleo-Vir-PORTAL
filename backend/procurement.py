@@ -59,10 +59,8 @@ DIRECTOR_PRIORITY = {
 
 # Approval thresholds (in INR)
 THRESHOLDS = {
-    "single_director": 50000,
-    "single_director_3quotes": 200000,
-    "all_directors": 1000000,
-    "board_approval": 10000000
+    "single_director": 50000,  # ≤ 50,000 → Single director (Yogesh)
+    # > 50,000 → All 3 directors must approve
 }
 
 # Storage paths
@@ -180,15 +178,20 @@ async def create_notification(db, user_email: str, title: str, message: str, not
     return notif_doc
 
 async def create_approval_entries(db, po_id: str, amount: float, created_by: str):
-    """Create approval entries based on amount thresholds"""
+    """Create approval entries based on amount thresholds
+    
+    Rules:
+    - ≤ ₹50,000: Single director approval (Yogesh - first director)
+    - > ₹50,000: ALL THREE directors must approve in sequence
+    """
     approvals = []
     
     if amount <= THRESHOLDS["single_director"]:
-        # Single director approval - Yogesh first
+        # Single director approval - Yogesh only
         approval = {
             "approval_id": f"appr_{uuid.uuid4().hex[:12]}",
             "po_id": po_id,
-            "approver_email": DIRECTORS[0],
+            "approver_email": DIRECTORS[0],  # yogesh.ostwal@nucleovir.com
             "approval_order": 1,
             "status": "pending",
             "required": True,
@@ -199,50 +202,17 @@ async def create_approval_entries(db, po_id: str, amount: float, created_by: str
         }
         approvals.append(approval)
         
-    elif amount <= THRESHOLDS["single_director_3quotes"]:
-        # Single director + 3 quotes required
-        approval = {
-            "approval_id": f"appr_{uuid.uuid4().hex[:12]}",
-            "po_id": po_id,
-            "approver_email": DIRECTORS[0],
-            "approval_order": 1,
-            "status": "pending",
-            "required": True,
-            "requires_3_quotes": True,
-            "decision": None,
-            "comment": None,
-            "decided_at": None,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        approvals.append(approval)
-        
-    elif amount <= THRESHOLDS["all_directors"]:
-        # All directors must approve in order
-        for i, director in enumerate(DIRECTORS):
-            approval = {
-                "approval_id": f"appr_{uuid.uuid4().hex[:12]}",
-                "po_id": po_id,
-                "approver_email": director,
-                "approval_order": i + 1,
-                "status": "pending" if i == 0 else "waiting",
-                "required": True,
-                "decision": None,
-                "comment": None,
-                "decided_at": None,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            approvals.append(approval)
     else:
-        # Board approval required
+        # Amount > ₹50,000: ALL THREE directors must approve in order
+        # Yogesh (1st) → Sunil (2nd) → Ayush (3rd)
         for i, director in enumerate(DIRECTORS):
             approval = {
                 "approval_id": f"appr_{uuid.uuid4().hex[:12]}",
                 "po_id": po_id,
                 "approver_email": director,
                 "approval_order": i + 1,
-                "status": "pending" if i == 0 else "waiting",
+                "status": "pending" if i == 0 else "waiting",  # Only first director gets pending initially
                 "required": True,
-                "requires_board_resolution": True,
                 "decision": None,
                 "comment": None,
                 "decided_at": None,
