@@ -48,8 +48,7 @@ procurement_router = APIRouter(prefix="/api", tags=["Procurement"])
 CA_EMAIL = "nikita@nucleovir.com"
 DIRECTORS = [
     "yogesh.ostwal@nucleovir.com",
-    "sunil.k@nucleovir.com",
-    "ayush@nucleovir.com"
+    "sunil.k@nucleovir.com"
 ]
 DIRECTOR_PRIORITY = {
     "yogesh.ostwal@nucleovir.com": 1,
@@ -57,11 +56,11 @@ DIRECTOR_PRIORITY = {
     "ayush@nucleovir.com": 3
 }
 
-# Approval thresholds (in INR)
-THRESHOLDS = {
-    "single_director": 50000,  # ≤ 50,000 → Single director (Yogesh)
-    # > 50,000 → All 3 directors must approve
-}
+# Directors list - Any ONE of them can approve a PO
+DIRECTORS = [
+    "yogesh.ostwal@nucleovir.com",
+    "sunil.k@nucleovir.com"
+]
 
 # Storage paths
 STORAGE_BASE = "/app/storage"
@@ -178,62 +177,45 @@ async def create_notification(db, user_email: str, title: str, message: str, not
     return notif_doc
 
 async def create_approval_entries(db, po_id: str, amount: float, created_by: str):
-    """Create approval entries based on amount thresholds
+    """Create approval entries for PO
     
     Rules:
-    - ≤ ₹50,000: Single director approval (Yogesh - first director)
-    - > ₹50,000: ALL THREE directors must approve in sequence
+    - PO goes to BOTH directors (Yogesh & Sunil) simultaneously
+    - Only ONE director needs to sign/approve for PO to be approved
     """
     approvals = []
     
-    if amount <= THRESHOLDS["single_director"]:
-        # Single director approval - Yogesh only
+    # Both directors get pending status simultaneously
+    # Either one can approve to complete the PO
+    for i, director in enumerate(DIRECTORS):
         approval = {
             "approval_id": f"appr_{uuid.uuid4().hex[:12]}",
             "po_id": po_id,
-            "approver_email": DIRECTORS[0],  # yogesh.ostwal@nucleovir.com
-            "approval_order": 1,
-            "status": "pending",
-            "required": True,
+            "approver_email": director,
+            "approval_order": i + 1,
+            "status": "pending",  # Both start as pending
+            "required": False,  # Not all required - any one can approve
             "decision": None,
             "comment": None,
             "decided_at": None,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         approvals.append(approval)
-        
-    else:
-        # Amount > ₹50,000: ALL THREE directors must approve in order
-        # Yogesh (1st) → Sunil (2nd) → Ayush (3rd)
-        for i, director in enumerate(DIRECTORS):
-            approval = {
-                "approval_id": f"appr_{uuid.uuid4().hex[:12]}",
-                "po_id": po_id,
-                "approver_email": director,
-                "approval_order": i + 1,
-                "status": "pending" if i == 0 else "waiting",  # Only first director gets pending initially
-                "required": True,
-                "decision": None,
-                "comment": None,
-                "decided_at": None,
-                "created_at": datetime.now(timezone.utc).isoformat()
-            }
-            approvals.append(approval)
     
     # Insert all approvals
     if approvals:
         await db.approvals.insert_many(approvals)
         
-        # Notify first approver
-        first_approver = approvals[0]["approver_email"]
-        await create_notification(
-            db, 
-            first_approver,
-            "New PO Pending Approval",
-            f"A purchase order for ₹{amount:,.2f} requires your approval.",
-            "approval_pending",
-            {"type": "po", "id": po_id}
-        )
+        # Notify ALL directors at once
+        for approval in approvals:
+            await create_notification(
+                db,
+                approval["approver_email"],
+                "New PO Pending Your Signature",
+                f"A purchase order for ₹{amount:,.2f} requires your signature. Please download, sign, and upload.",
+                "approval_pending",
+                {"type": "po", "id": po_id}
+            )
     
     return approvals
 
@@ -1119,56 +1101,43 @@ async def download_po_for_signing(
 
 
 async def process_approval_chain(db, approval, po, user):
-    """Process the approval chain after a director signs"""
+    """Process the approval chain after a director signs
+    
+    New Rule: ANY ONE director signing = PO is approved
+    Cancel pending approvals from other directors
+    """
     po_id = approval["po_id"]
     
-    # Check if there are more approvers
-    next_approval = await db.approvals.find_one({
-        "po_id": po_id,
-        "status": "waiting",
-        "approval_order": approval["approval_order"] + 1
-    })
+    # Since any one director's approval is enough, mark PO as approved
+    await db.purchase_orders.update_one(
+        {"po_id": po_id},
+        {"$set": {
+            "status": "approved",
+            "approval_status": "approved",
+            "approved_at": datetime.now(timezone.utc).isoformat(),
+            "approved_by": user.email,
+            "fully_signed": True
+        }}
+    )
     
-    if next_approval:
-        # Activate next approver
-        await db.approvals.update_one(
-            {"approval_id": next_approval["approval_id"]},
-            {"$set": {"status": "pending"}}
-        )
-        
-        # Notify next approver
-        await create_notification(
-            db,
-            next_approval["approver_email"],
-            "PO Pending Your Signature",
-            f"PO {po['po_number']} for ₹{po['total_amount']:,.2f} requires your signature. Please download, sign, and upload.",
-            "approval_pending",
-            {"type": "po", "id": po_id}
-        )
-    else:
-        # All approved - update PO status
-        await db.purchase_orders.update_one(
-            {"po_id": po_id},
-            {"$set": {
-                "status": "approved",
-                "approval_status": "approved",
-                "approved_at": datetime.now(timezone.utc).isoformat(),
-                "fully_signed": True
-            }}
-        )
-        
-        # Notify CA
-        await create_notification(
-            db,
-            CA_EMAIL,
-            "PO Fully Signed & Approved",
-            f"PO {po['po_number']} has been signed by all required directors and is now approved.",
-            "po_approved",
-            {"type": "po", "id": po_id}
-        )
-        
-        await create_audit_log(db, "purchase_order", po_id, "fully_approved", user.email, 
-                              {"status": "pending_approval"}, {"status": "approved"})
+    # Cancel any other pending approvals for this PO
+    await db.approvals.update_many(
+        {"po_id": po_id, "status": "pending", "approver_email": {"$ne": user.email.lower()}},
+        {"$set": {"status": "cancelled", "comment": f"Cancelled - PO approved by {user.email}"}}
+    )
+    
+    # Notify CA that PO is approved
+    await create_notification(
+        db,
+        CA_EMAIL,
+        "PO Signed & Approved",
+        f"PO {po['po_number']} has been signed by {user.name or user.email} and is now approved.",
+        "po_approved",
+        {"type": "po", "id": po_id}
+    )
+    
+    await create_audit_log(db, "purchase_order", po_id, "approved", user.email, 
+                          {"status": "pending_approval"}, {"status": "approved"})
 
 
 def generate_po_pdf_with_signatures(po: dict, previous_approvals: list, current_order: int) -> bytes:
@@ -1254,16 +1223,12 @@ def generate_po_pdf_with_signatures(po: dict, previous_approvals: list, current_
     elements.append(Paragraph("<b>APPROVAL SIGNATURES:</b>", title_style))
     elements.append(Spacer(1, 5*mm))
     
-    # Create signature boxes
+    # Create signature boxes for 2 directors only
     sig_data = []
-    directors = ["yogesh.ostwal@nucleovir.com", "sunil.k@nucleovir.com", "ayush@nucleovir.com"]
-    director_names = ["Yogesh Ostwal", "Sunil K", "Ayush"]
+    directors = ["yogesh.ostwal@nucleovir.com", "sunil.k@nucleovir.com"]
+    director_names = ["Yogesh Ostwal", "Sunil K"]
     
-    # Determine how many signatures are needed
-    total_amount = po.get('total_amount', 0)
-    num_required = 1 if total_amount <= 50000 else 3
-    
-    for i in range(num_required):
+    for i in range(2):
         director_email = directors[i]
         director_name = director_names[i]
         
@@ -2143,17 +2108,23 @@ async def check_procurement_access(session_token: Optional[str] = Cookie(None)):
     email = user.email.lower()
     
     is_ca = email == CA_EMAIL.lower()
-    is_director = email in [d.lower() for d in DIRECTORS]
+    is_director = email in [d.lower() for d in DIRECTORS]  # Only Yogesh & Sunil
     is_admin = user.role == "Admin"
     
-    # Directors who are NOT also Admin should only have Director access
-    # CA has full procurement access
-    # Admin has full access
-    can_access_ca_features = is_ca or is_admin
+    # Procurement access rules:
+    # - CA (Nikita): Full access
+    # - Admin who is ALSO a Director (Yogesh/Sunil): Full access + can approve
+    # - Admin who is NOT a Director (Ayush): NO procurement access
+    # - Directors: Can approve only
+    
+    # Only CA or Admin+Director can access procurement
+    can_access_procurement = is_ca or (is_admin and is_director)
+    can_access_ca_features = is_ca or (is_admin and is_director)
+    can_approve = is_director  # Only directors can approve
     
     # Get pending approvals count for directors
     pending_count = 0
-    if is_director or is_admin:
+    if is_director:
         pending_count = await db.approvals.count_documents({
             "approver_email": email,
             "status": "pending"
@@ -2163,9 +2134,9 @@ async def check_procurement_access(session_token: Optional[str] = Cookie(None)):
         "is_ca": is_ca,
         "is_director": is_director,
         "is_admin": is_admin,
-        "can_access_procurement": is_ca or is_admin,
-        "can_access_ca_features": can_access_ca_features,  # Full CA features
-        "can_approve": is_director or is_admin,  # Director approval access only
+        "can_access_procurement": can_access_procurement,
+        "can_access_ca_features": can_access_ca_features,
+        "can_approve": can_approve,
         "pending_approvals": pending_count,
         "email": email,
         "role": user.role

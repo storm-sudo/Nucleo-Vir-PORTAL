@@ -17,6 +17,7 @@ import {
 import { BACKEND_URL } from '@/config';
 
 const CA_EMAIL = "nikita@nucleovir.com";
+const PROCUREMENT_DIRECTORS = ["yogesh.ostwal@nucleovir.com", "sunil.k@nucleovir.com"];
 
 export default function Procurement() {
   const { user } = useOutletContext();

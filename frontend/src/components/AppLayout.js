@@ -86,10 +86,21 @@ export default function AppLayout() {
     navigate('/');
   };
 
+  // Directors who can access Procurement (Ayush excluded)
+  const PROCUREMENT_DIRECTORS = ['yogesh.ostwal@nucleovir.com', 'sunil.k@nucleovir.com'];
+  
   const menuItems = [
     { icon: LayoutDashboard, label: 'Dashboard', path: '/app', exact: true },
     { icon: Clipboard, label: 'Work Assignments', path: '/app/work-assignments' },
-    { icon: ShoppingCart, label: 'Procurement', path: '/app/procurement', roles: ['Admin', 'CA', 'Director'] },
+    { 
+      icon: ShoppingCart, 
+      label: 'Procurement', 
+      path: '/app/procurement', 
+      // Custom check: CA, or Admin who is also a director (Yogesh/Sunil), not Ayush
+      customCheck: (u) => u?.role === 'CA' || 
+                         (u?.role === 'Admin' && PROCUREMENT_DIRECTORS.includes(u?.email?.toLowerCase())) ||
+                         u?.email?.toLowerCase() === 'nikita@nucleovir.com'
+    },
     { icon: Users, label: 'Employees', path: '/app/employees', roles: ['Admin', 'HR'] },
     { icon: Clock, label: 'Attendance', path: '/app/attendance' },
     { icon: FileText, label: 'Leave Requests', path: '/app/leave-requests' },
@@ -110,6 +121,10 @@ export default function AppLayout() {
   ];
 
   const filteredMenuItems = menuItems.filter(item => {
+    // Custom check takes priority
+    if (item.customCheck) {
+      return item.customCheck(user);
+    }
     if (!item.roles) return true;
     return user && item.roles.includes(user.role);
   });
