@@ -550,6 +550,44 @@ async def get_quotation(quotation_id: str, session_token: Optional[str] = Cookie
     
     return quotation
 
+
+@procurement_router.delete("/quotations/{quotation_id}")
+async def delete_quotation(quotation_id: str, session_token: Optional[str] = Cookie(None)):
+    """Delete a quotation (CA and SuperAdmin only)"""
+    from server import db, get_user_from_token
+    
+    user = await get_user_from_token(session_token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    
+    # Only CA and SuperAdmin can delete quotations
+    if user.email.lower() != CA_EMAIL.lower() and user.role != "SuperAdmin":
+        raise HTTPException(status_code=403, detail="Only CA and SuperAdmin can delete quotations")
+    
+    # Check if quotation exists
+    quotation = await db.quotations.find_one({"quotation_id": quotation_id}, {"_id": 0})
+    if not quotation:
+        raise HTTPException(status_code=404, detail="Quotation not found")
+    
+    # Check if quotation has been converted to PO
+    po_exists = await db.purchase_orders.find_one({"quotation_id": quotation_id})
+    if po_exists:
+        raise HTTPException(status_code=400, detail="Cannot delete quotation - it has been converted to a PO")
+    
+    # Delete the quotation
+    await db.quotations.delete_one({"quotation_id": quotation_id})
+    
+    # Create audit log
+    await create_audit_log(
+        db, "quotation", quotation_id, "deleted", 
+        user.email, 
+        {"status": quotation.get("status")}, 
+        {"status": "deleted"}
+    )
+    
+    return {"message": "Quotation deleted successfully", "quotation_id": quotation_id}
+
+
 # ==================== PURCHASE ORDER ENDPOINTS ====================
 
 @procurement_router.post("/po/generate")

@@ -388,6 +388,30 @@ export default function Procurement() {
     }
   };
 
+  // Delete quotation
+  const handleDeleteQuotation = async (quotationId) => {
+    if (!window.confirm('Are you sure you want to delete this quotation? This action cannot be undone.')) {
+      return;
+    }
+    
+    try {
+      const response = await fetch(`${BACKEND_URL}/api/quotations/${quotationId}`, {
+        method: 'DELETE',
+        credentials: 'include'
+      });
+      
+      if (response.ok) {
+        toast.success('Quotation deleted successfully');
+        fetchData();
+      } else {
+        const error = await response.json();
+        toast.error(error.detail || 'Failed to delete quotation');
+      }
+    } catch (error) {
+      toast.error('Error deleting quotation');
+    }
+  };
+
   const handleExportReport = async (reportType, format) => {
     try {
       const response = await fetch(
