@@ -96,16 +96,17 @@ export default function AppLayout() {
       icon: ShoppingCart, 
       label: 'Procurement', 
       path: '/app/procurement', 
-      // Custom check: CA, or Admin who is also a director (Yogesh/Sunil), not Ayush
-      customCheck: (u) => u?.role === 'CA' || 
+      // Custom check: SuperAdmin, CA, or Admin who is also a director (Yogesh/Sunil)
+      customCheck: (u) => u?.role === 'SuperAdmin' ||
+                         u?.role === 'CA' || 
                          (u?.role === 'Admin' && PROCUREMENT_DIRECTORS.includes(u?.email?.toLowerCase())) ||
                          u?.email?.toLowerCase() === 'nikita@nucleovir.com'
     },
-    { icon: Users, label: 'Employees', path: '/app/employees', roles: ['Admin', 'HR'] },
+    { icon: Users, label: 'Employees', path: '/app/employees', roles: ['Admin', 'HR', 'SuperAdmin'] },
     { icon: Clock, label: 'Attendance', path: '/app/attendance' },
     { icon: FileText, label: 'Leave Requests', path: '/app/leave-requests' },
-    { icon: DollarSign, label: 'Payroll', path: '/app/payroll', roles: ['Admin', 'HR', 'Accountant'] },
-    { icon: DollarSign, label: 'Payment Requests', path: '/app/payment-requests', roles: ['Admin', 'Accountant', 'CA'] },
+    { icon: DollarSign, label: 'Payroll', path: '/app/payroll', roles: ['Admin', 'HR', 'Accountant', 'SuperAdmin'] },
+    { icon: DollarSign, label: 'Payment Requests', path: '/app/payment-requests', roles: ['Admin', 'Accountant', 'CA', 'SuperAdmin'] },
     { icon: FolderKanban, label: 'Projects', path: '/app/projects' },
     { icon: Microscope, label: 'Lab Notebook', path: '/app/lab-notebook' },
     { icon: Package, label: 'Lab Inventory', path: '/app/lab-inventory' },
@@ -114,6 +115,7 @@ export default function AppLayout() {
     { icon: MessageSquare, label: 'Chat', path: '/app/chat' },
     { icon: Calendar, label: 'Calendar', path: '/app/calendar' },
     { icon: ClipboardList, label: 'Helpdesk', path: '/app/helpdesk' },
+    { icon: Users, label: 'User Management', path: '/app/user-management', roles: ['SuperAdmin'] },
   ];
 
   const secondaryMenuItems = [

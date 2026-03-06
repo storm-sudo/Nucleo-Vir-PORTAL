@@ -55,7 +55,7 @@ class User(BaseModel):
     email: EmailStr
     name: str
     picture: Optional[str] = None
-    role: str = "Employee"  # Admin, HR, Employee, Accountant, CA
+    role: str = "Employee"  # SuperAdmin, Admin, HR, Employee, Accountant, CA, Director
     created_at: datetime
 
 class Employee(BaseModel):
@@ -2094,7 +2094,193 @@ async def get_notebook_history(entry_id: str, session_token: Optional[str] = Coo
     
     return versions
 
-# Include router
+# ==================== USER MANAGEMENT (SuperAdmin Only) ====================
+
+AVAILABLE_ROLES = ["SuperAdmin", "Admin", "HR", "Employee", "Accountant", "CA"]
+PROCUREMENT_DIRECTORS = ["yogesh.ostwal@nucleovir.com", "sunil.k@nucleovir.com"]
+
+@api_router.get("/admin/users")
+async def get_all_users(session_token: Optional[str] = Cookie(None)):
+    """Get all users (SuperAdmin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'SuperAdmin':
+        raise HTTPException(status_code=403, detail="Only SuperAdmin can manage users")
+    
+    users = await db.users.find({}, {"_id": 0, "password_hash": 0}).to_list(1000)
+    
+    # Add computed fields
+    for u in users:
+        u['is_director'] = u['email'].lower() in PROCUREMENT_DIRECTORS
+        u['has_procurement_access'] = (
+            u['role'] == 'CA' or 
+            u['role'] == 'SuperAdmin' or
+            (u['role'] == 'Admin' and u['email'].lower() in PROCUREMENT_DIRECTORS)
+        )
+    
+    return users
+
+@api_router.get("/admin/roles")
+async def get_available_roles(session_token: Optional[str] = Cookie(None)):
+    """Get available roles (SuperAdmin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'SuperAdmin':
+        raise HTTPException(status_code=403, detail="Only SuperAdmin can manage users")
+    
+    return {
+        "roles": AVAILABLE_ROLES,
+        "procurement_directors": PROCUREMENT_DIRECTORS
+    }
+
+@api_router.put("/admin/users/{user_email}/role")
+async def update_user_role(user_email: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Update user role (SuperAdmin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'SuperAdmin':
+        raise HTTPException(status_code=403, detail="Only SuperAdmin can manage users")
+    
+    new_role = data.get('role')
+    if new_role not in AVAILABLE_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {AVAILABLE_ROLES}")
+    
+    # Prevent changing own role
+    if user_email.lower() == user.email.lower():
+        raise HTTPException(status_code=400, detail="Cannot change your own role")
+    
+    result = await db.users.update_one(
+        {"email": user_email.lower()},
+        {"$set": {"role": new_role, "updated_at": datetime.now(timezone.utc).isoformat()}}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": f"Role updated to {new_role}", "email": user_email}
+
+@api_router.put("/admin/users/{user_email}/director")
+async def toggle_director_access(user_email: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Add/remove user from procurement directors list (SuperAdmin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'SuperAdmin':
+        raise HTTPException(status_code=403, detail="Only SuperAdmin can manage users")
+    
+    is_director = data.get('is_director', False)
+    
+    # This updates the in-memory list and saves to a config collection
+    global PROCUREMENT_DIRECTORS
+    
+    email_lower = user_email.lower()
+    
+    if is_director and email_lower not in PROCUREMENT_DIRECTORS:
+        PROCUREMENT_DIRECTORS.append(email_lower)
+        message = f"{user_email} added as Procurement Director"
+    elif not is_director and email_lower in PROCUREMENT_DIRECTORS:
+        PROCUREMENT_DIRECTORS.remove(email_lower)
+        message = f"{user_email} removed from Procurement Directors"
+    else:
+        message = "No change"
+    
+    # Save to database for persistence
+    await db.config.update_one(
+        {"key": "procurement_directors"},
+        {"$set": {"value": PROCUREMENT_DIRECTORS, "updated_at": datetime.now(timezone.utc).isoformat()}},
+        upsert=True
+    )
+    
+    # Also update procurement.py DIRECTORS list via config
+    return {"message": message, "procurement_directors": PROCUREMENT_DIRECTORS}
+
+@api_router.post("/admin/users")
+async def create_user(data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Create new user (SuperAdmin only)"""
+    from passlib.context import CryptContext
+    
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'SuperAdmin':
+        raise HTTPException(status_code=403, detail="Only SuperAdmin can create users")
+    
+    email = data.get('email', '').lower()
+    name = data.get('name', email.split('@')[0].replace('.', ' ').title())
+    role = data.get('role', 'Employee')
+    password = data.get('password')
+    
+    if not email or not password:
+        raise HTTPException(status_code=400, detail="Email and password required")
+    
+    if role not in AVAILABLE_ROLES:
+        raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {AVAILABLE_ROLES}")
+    
+    # Check if user exists
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="User already exists")
+    
+    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    hashed = pwd_ctx.hash(password)
+    
+    user_doc = {
+        "user_id": f"user_{uuid.uuid4().hex[:12]}",
+        "email": email,
+        "name": name,
+        "role": role,
+        "password_hash": hashed,
+        "must_change_password": True,
+        "created_at": datetime.now(timezone.utc).isoformat()
+    }
+    
+    await db.users.insert_one(user_doc)
+    
+    return {"message": "User created", "user_id": user_doc['user_id'], "email": email}
+
+@api_router.delete("/admin/users/{user_email}")
+async def delete_user(user_email: str, session_token: Optional[str] = Cookie(None)):
+    """Delete user (SuperAdmin only)"""
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'SuperAdmin':
+        raise HTTPException(status_code=403, detail="Only SuperAdmin can delete users")
+    
+    # Prevent self-deletion
+    if user_email.lower() == user.email.lower():
+        raise HTTPException(status_code=400, detail="Cannot delete your own account")
+    
+    result = await db.users.delete_one({"email": user_email.lower()})
+    
+    if result.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "User deleted", "email": user_email}
+
+@api_router.put("/admin/users/{user_email}/reset-password")
+async def reset_user_password(user_email: str, data: Dict[str, Any], session_token: Optional[str] = Cookie(None)):
+    """Reset user password (SuperAdmin only)"""
+    from passlib.context import CryptContext
+    
+    user = await get_user_from_token(session_token)
+    if not user or user.role != 'SuperAdmin':
+        raise HTTPException(status_code=403, detail="Only SuperAdmin can reset passwords")
+    
+    new_password = data.get('password')
+    if not new_password or len(new_password) < 8:
+        raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+    
+    pwd_ctx = CryptContext(schemes=["bcrypt"], deprecated="auto")
+    hashed = pwd_ctx.hash(new_password)
+    
+    result = await db.users.update_one(
+        {"email": user_email.lower()},
+        {"$set": {
+            "password_hash": hashed,
+            "must_change_password": True,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }}
+    )
+    
+    if result.modified_count == 0:
+        raise HTTPException(status_code=404, detail="User not found")
+    
+    return {"message": "Password reset successfully", "email": user_email}
+
+
+# Include api_router AFTER all routes are defined
 app.include_router(api_router)
 
 # CORS middleware

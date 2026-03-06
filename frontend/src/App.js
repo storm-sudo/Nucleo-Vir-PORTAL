@@ -20,6 +20,7 @@ import Calendar from '@/pages/Calendar';
 import Helpdesk from '@/pages/Helpdesk';
 import About from '@/pages/About';
 import Procurement from '@/pages/Procurement';
+import UserManagement from '@/pages/UserManagement';
 import ProtectedRoute from '@/components/ProtectedRoute';
 import AppLayout from '@/components/AppLayout';
 import { Toaster } from '@/components/ui/sonner';
@@ -57,6 +58,7 @@ function AppRouter() {
         <Route path="calendar" element={<Calendar />} />
         <Route path="helpdesk" element={<Helpdesk />} />
         <Route path="procurement" element={<Procurement />} />
+        <Route path="user-management" element={<UserManagement />} />
         <Route path="about" element={<About />} />
       </Route>
     </Routes>

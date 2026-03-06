@@ -2110,21 +2110,21 @@ async def check_procurement_access(session_token: Optional[str] = Cookie(None)):
     is_ca = email == CA_EMAIL.lower()
     is_director = email in [d.lower() for d in DIRECTORS]  # Only Yogesh & Sunil
     is_admin = user.role == "Admin"
+    is_super_admin = user.role == "SuperAdmin"
     
     # Procurement access rules:
+    # - SuperAdmin: FULL access to everything
     # - CA (Nikita): Full access
     # - Admin who is ALSO a Director (Yogesh/Sunil): Full access + can approve
     # - Admin who is NOT a Director (Ayush): NO procurement access
-    # - Directors: Can approve only
     
-    # Only CA or Admin+Director can access procurement
-    can_access_procurement = is_ca or (is_admin and is_director)
-    can_access_ca_features = is_ca or (is_admin and is_director)
-    can_approve = is_director  # Only directors can approve
+    can_access_procurement = is_super_admin or is_ca or (is_admin and is_director)
+    can_access_ca_features = is_super_admin or is_ca or (is_admin and is_director)
+    can_approve = is_super_admin or is_director  # SuperAdmin and directors can approve
     
-    # Get pending approvals count for directors
+    # Get pending approvals count
     pending_count = 0
-    if is_director:
+    if is_director or is_super_admin:
         pending_count = await db.approvals.count_documents({
             "approver_email": email,
             "status": "pending"
@@ -2134,6 +2134,7 @@ async def check_procurement_access(session_token: Optional[str] = Cookie(None)):
         "is_ca": is_ca,
         "is_director": is_director,
         "is_admin": is_admin,
+        "is_super_admin": is_super_admin,
         "can_access_procurement": can_access_procurement,
         "can_access_ca_features": can_access_ca_features,
         "can_approve": can_approve,
